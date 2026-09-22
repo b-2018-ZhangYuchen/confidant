@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "confidant"
+version = "0.1.0"
+description = "An AI agent that helps you think clearly about the people you date."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Yuchen Zhang" }]
+keywords = ["ai", "agent", "anthropic", "claude", "dating", "relationships"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "anthropic>=0.40",
+  "pydantic>=2.7",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+]
+
+[project.scripts]
+confidant = "confidant.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/b-2018-ZhangYuchen/confidant"
+Issues = "https://github.com/b-2018-ZhangYuchen/confidant/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/confidant"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

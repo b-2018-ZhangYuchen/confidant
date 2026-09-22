@@ -1,0 +1,22 @@
+# Entirely fictional. Written as a fixture so the repo never needs real chat logs.
+# owner: Sam
+# match: Robin
+
+[2026-03-02 19:04] Robin: hey! your profile said you bike to work — which route?
+[2026-03-02 19:31] Sam: the river path, mostly. takes longer but it's worth it
+[2026-03-02 19:33] Robin: the one past the old mill? I did that every morning last summer
+    there's a coffee cart near the second bridge that is criminally underrated
+[2026-03-02 19:40] Sam: okay I have walked past that cart a hundred times and never stopped
+[2026-03-02 19:41] Robin: unacceptable. that's a first date now, I don't make the rules
+[2026-03-03 08:12] Sam: thought about the coffee cart all night, this is your fault
+[2026-03-03 12:50] Robin: good. how did the presentation go? you said it was thursday
+[2026-03-03 13:20] Sam: it was fine! my slides were a mess but nobody noticed
+[2026-03-03 13:22] Robin: "fine" is doing a lot of work in that sentence. what was the messy part
+[2026-03-03 13:45] Sam: honestly I rewrote the middle section at 2am and it showed
+[2026-03-03 13:49] Robin: ah, the 2am rewrite. classic. did you at least get to the part you cared about
+[2026-03-05 21:10] Sam: hey, sorry for going quiet, brutal week
+[2026-03-05 21:14] Robin: no apology needed. brutal how — workload or people
+[2026-03-05 21:30] Sam: workload. and a bit of people
+[2026-03-05 21:32] Robin: that combination is the worst one. do you want to talk about it or be distracted
+[2026-03-05 21:35] Sam: distracted please
+[2026-03-05 21:36] Robin: excellent. I have a strongly held opinion about airport carpet that I have been saving
