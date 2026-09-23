@@ -1,0 +1,16 @@
+# Entirely fictional. Written so the red-flag check has something to find in tests
+# and demos; no real conversation was used or adapted.
+# owner: Jordan
+# match: Casey
+
+[2026-04-10 20:02] Casey: you looked amazing in that last photo. where was that taken?
+[2026-04-10 20:15] Jordan: haha thanks, that was at my sister's place
+[2026-04-10 20:16] Casey: send me your location next time you're out, I like knowing where you are
+[2026-04-10 20:30] Jordan: I'm not really comfortable sharing that yet
+[2026-04-10 20:31] Casey: come on, it's not a big deal. everyone does it
+[2026-04-11 18:40] Jordan: I'm going out with friends tonight, talk tomorrow?
+[2026-04-11 18:41] Casey: your friends again? they don't even like me
+    you should be spending that time with me
+[2026-04-11 23:58] Casey: who are you with right now
+[2026-04-12 09:14] Jordan: sorry, was asleep. had a good night though
+[2026-04-12 09:20] Casey: I guess I just care more than you do. whatever

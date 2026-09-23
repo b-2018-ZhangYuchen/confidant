@@ -25,7 +25,7 @@ Early and honest about it. Working today:
 | ✅ | Transcript parsing (plain text, timestamps optional, multi-line messages) |
 | ✅ | Local conversation statistics — no API call, no data leaves your machine |
 | ✅ | Personality read backed by Claude, with quoted evidence and explicit confidence |
-| 🔜 | Red-flag detection with severity tiers |
+| ✅ | Red-flag detection with severity tiers, every quote checked against the transcript |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -70,6 +70,10 @@ confidant stats examples/sample_chat.txt
 # Ask Claude for a read.
 confidant analyze examples/sample_chat.txt
 confidant analyze examples/sample_chat.txt --json
+
+# A separate check for red flags, each with a severity tier.
+confidant flags examples/pressure_chat.txt
+confidant flags examples/pressure_chat.txt --json
 ```
 
 `stats` gives you the cheap signals:
@@ -87,16 +91,34 @@ Sam <-> Robin
 `analyze` gives you the considered read — traits with quoted evidence, green flags,
 things worth watching, questions worth asking, and a stated confidence level.
 
+`flags` is a separate pass that looks only for behavior that could matter for your
+wellbeing or safety, and gives each finding one of three tiers:
+
+| Tier | Meaning |
+|---|---|
+| `watch` | Worth noticing, quite possibly innocent. Shown with the most plausible mundane reading. |
+| `concern` | A pattern that would matter in any relationship — pushing past a "no", belittling, guilt-tripping, asking for money. |
+| `danger` | Threats, coercion, pressure around sex or money, isolation from friends, tracking where you are. Named plainly, with no charitable gloss. |
+
+It runs as its own request so the warmth of the personality read cannot dilute it, and
+two things are enforced in code rather than left to the prompt: every quote is checked
+against what the other person actually wrote (a flag whose quotes cannot be found is
+dropped, and the report says so), and threats, coercion, sexual pressure, isolation, and
+monitoring are always tier 3. Most transcripts have no flags, and the report says that
+plainly too. `examples/pressure_chat.txt` is a fictional conversation written to have
+something to find.
+
 ## Your data
 
 Your chat history is about as private as data gets, and this repo is built around that:
 
 - `.gitignore` blocks `data/`, `transcripts/`, `conversations/`, `*.db`, and `.env`
-  before you can make a mistake with them. The only conversation in this repository is
-  `examples/sample_chat.txt`, which is fictional.
+  before you can make a mistake with them. The only conversations in this repository are
+  `examples/sample_chat.txt` and `examples/pressure_chat.txt`, both fictional.
 - `confidant stats` never makes a network call.
-- `confidant analyze` sends the transcript to the Anthropic API and nothing else — no
-  telemetry, no analytics, no third parties. A local redaction layer is on the roadmap.
+- `confidant analyze` and `confidant flags` send the transcript to the Anthropic API and
+  nothing else — no telemetry, no analytics, no third parties. A local redaction layer is
+  on the roadmap.
 
 ## Development
 

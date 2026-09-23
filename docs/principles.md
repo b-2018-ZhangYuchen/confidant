@@ -50,7 +50,7 @@ even-handed. It does not lecture, and it does not turn every report into a warni
 
 ### 8. The data stays put
 
-`confidant stats` never makes a network call. `confidant analyze` sends the transcript to
-the Anthropic API and nowhere else: no telemetry, no analytics, no third parties. The
-`.gitignore` blocks conversation data and `.env` before anyone can commit them by
-accident. The only conversation in this repository is fictional.
+`confidant stats` never makes a network call. `confidant analyze` and `confidant flags`
+send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
+third parties. The `.gitignore` blocks conversation data and `.env` before anyone can
+commit them by accident. The only conversations in this repository are fictional.

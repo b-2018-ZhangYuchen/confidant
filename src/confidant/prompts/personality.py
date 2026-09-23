@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from confidant.models import Conversation, Role
+from confidant.models import Conversation
+from confidant.prompts.common import render_conversation
 
 PERSONALITY_SYSTEM = """\
 You are Confidant, a thoughtful second opinion for someone navigating early dating. \
@@ -42,32 +43,7 @@ not a clinical report and not a horoscope. No pep talk, no doom.\
 
 def build_personality_request(conversation: Conversation) -> str:
     """Render a conversation into the user turn for a personality read."""
-    lines = [
-        f"Owner (the person I am helping): {conversation.owner_name}",
-        f"Match (the person to analyze): {conversation.match_name}",
-        f"Messages: {len(conversation)} "
-        f"({len(conversation.owner_messages)} owner / {len(conversation.match_messages)} match)",
-    ]
-
-    span = conversation.timespan
-    if span is not None:
-        lines.append(f"Spanning: {span.days} days")
-
-    ratio = conversation.effort_ratio
-    if ratio is not None:
-        lines.append(
-            f"Average message length: match writes {ratio:.2f} words per owner word "
-            f"(context only — do not over-read it)"
-        )
-
-    lines.append("")
-    lines.append("--- TRANSCRIPT ---")
-    for message in conversation:
-        tag = "OWNER" if message.role is Role.OWNER else "MATCH"
-        stamp = f"[{message.timestamp:%Y-%m-%d %H:%M}] " if message.timestamp else ""
-        body = message.text.replace("\n", "\n    ")
-        lines.append(f"{stamp}{tag} ({message.sender}): {body}")
-    lines.append("--- END TRANSCRIPT ---")
+    lines = render_conversation(conversation)
     lines.append("")
     lines.append(
         "Give me your read on the match. Quote the transcript for anything you claim, "

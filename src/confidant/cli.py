@@ -2,6 +2,7 @@
 
 confidant stats    examples/sample_chat.txt      # local, no API call
 confidant analyze  examples/sample_chat.txt      # calls Claude
+confidant flags    examples/sample_chat.txt      # calls Claude
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import sys
 import anthropic
 
 from confidant import __version__
+from confidant.analysis.flags import analyze_flags
 from confidant.analysis.personality import analyze_personality
 from confidant.client import ModelRefusal
 from confidant.config import ConfigError, Settings
@@ -53,15 +55,17 @@ def _build_parser() -> argparse.ArgumentParser:
     for name, help_text in (
         ("stats", "Show conversation statistics. Runs locally, no API call."),
         ("analyze", "Ask Claude for a read on how the other person comes across."),
+        ("flags", "Ask Claude to check the other person's messages for red flags."),
     ):
         sub = subcommands.add_parser(name, help=help_text, description=help_text)
         sub.add_argument("transcript", help="Path to a transcript file.")
         sub.add_argument("--owner", help="Your name in the transcript.")
         sub.add_argument("--match", help="Their name in the transcript.")
 
-    subcommands.choices["analyze"].add_argument(
-        "--json", action="store_true", help="Print the raw report as JSON."
-    )
+    for name in ("analyze", "flags"):
+        subcommands.choices[name].add_argument(
+            "--json", action="store_true", help="Print the raw report as JSON."
+        )
     return parser
 
 
@@ -80,7 +84,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         settings = Settings.from_env()
-        report = analyze_personality(conversation, settings=settings)
+        analyze = analyze_flags if args.command == "flags" else analyze_personality
+        report = analyze(conversation, settings=settings)
     except ConfigError as exc:
         print(f"confidant: {exc}", file=sys.stderr)
         return 2
