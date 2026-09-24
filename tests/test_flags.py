@@ -167,7 +167,6 @@ def test_innocent_reading_is_shown_below_danger_and_withheld_at_danger():
     assert "Could also be: They were tired." in text
     assert "They were just curious." not in text
     assert "[DANGER] monitoring" in text
-    assert "Something here is serious." in text
 
 
 def test_discarded_flags_are_reported():
@@ -235,11 +234,14 @@ def test_analyze_flags_refuses_a_one_sided_transcript(monkeypatch):
 
 
 @pytest.fixture
-def fake_flags(monkeypatch):
-    report = FlagReport(
-        flags=[flag("who are you with right now", category="monitoring", severity="danger")],
-        summary="Casey pushes for access to Jordan's whereabouts.",
-        confidence="medium",
+def fake_flags(monkeypatch, pressure):
+    report = ground_flags(
+        FlagScan(
+            flags=[flag("who are you with right now", category="monitoring", severity="danger")],
+            summary="Casey pushes for access to Jordan's whereabouts.",
+            confidence="medium",
+        ),
+        pressure,
     )
     monkeypatch.setattr("confidant.cli.Settings.from_env", lambda: None)
     monkeypatch.setattr("confidant.cli.analyze_flags", lambda conversation, settings: report)
@@ -250,6 +252,7 @@ def test_cli_flags_prints_the_report(capsys, fake_flags):
     out = capsys.readouterr().out
     assert "[DANGER] monitoring" in out
     assert '"who are you with right now"' in out
+    assert out.startswith("!! Something in Casey's messages is serious: tracking where you are.")
 
 
 def test_cli_flags_json(capsys, fake_flags):
@@ -257,6 +260,8 @@ def test_cli_flags_json(capsys, fake_flags):
     payload = json.loads(capsys.readouterr().out)
     assert payload["flags"][0]["severity"] == "danger"
     assert payload["discarded"] == 0
+    assert payload["escalation"]["categories"] == ["monitoring"]
+    assert payload["escalation"]["physical_risk"] is True
 
 
 def test_cli_flags_without_credentials_exits_2(capsys, monkeypatch, tmp_path):

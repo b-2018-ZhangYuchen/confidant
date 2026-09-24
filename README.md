@@ -26,6 +26,7 @@ Early and honest about it. Working today:
 | ✅ | Local conversation statistics — no API call, no data leaves your machine |
 | ✅ | Personality read backed by Claude, with quoted evidence and explicit confidence |
 | ✅ | Red-flag detection with severity tiers, every quote checked against the transcript |
+| ✅ | A fixed safety notice, printed first, whenever a danger-tier flag is found |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -107,6 +108,32 @@ dropped, and the report says so), and threats, coercion, sexual pressure, isolat
 monitoring are always tier 3. Most transcripts have no flags, and the report says that
 plainly too. `examples/pressure_chat.txt` is a fictional conversation written to have
 something to find.
+
+When a `danger` flag survives that check, the report opens with a safety notice, above
+the model's own summary. The model decides whether something is dangerous; what you are
+told to do about it is fixed text, written in advance in
+[`src/confidant/safety.py`](src/confidant/safety.py), so it is the same every time and a
+mild-sounding summary cannot talk you out of it. It is shown whatever the confidence
+level. If the check finds tracking and isolation in the pressure example, the report
+begins:
+
+```
+!! Something in Casey's messages is serious: tracking where you are and pressure to pull
+   away from friends or family.
+
+   - You do not have to share your location or account for where you are. If you have
+     already shared it in an app, you can turn that off without explaining.
+   - Keep your plans with friends and family. They are the people to talk this through
+     with.
+   - You do not owe them a reply, and you do not have to decide anything right away.
+     Talk it through with someone you trust first.
+   - If you ever feel physically unsafe, call your local emergency number.
+```
+
+With `--json` the same notice is in the `escalation` field. If a flag filed as danger is
+dropped because its quotes could not be found, the report says so rather than going
+quiet about it. Region-specific crisis resources are on the roadmap; until then the
+notice points only at what is right everywhere.
 
 ## Your data
 

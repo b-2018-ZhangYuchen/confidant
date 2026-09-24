@@ -14,6 +14,9 @@ leave to the prompt alone:
 * **Severity floors.** Threats, coercion, sexual pressure, isolation, and monitoring are
   always tier 3. If the model filed one of those as "watch", that is exactly the
   softening ``docs/principles.md`` rules out, so it is corrected rather than trusted.
+
+When a tier-3 flag survives both, the report carries an :class:`~confidant.safety.Escalation`
+and leads with it. What that notice says lives in ``confidant.safety``.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from confidant.client import structured_call
 from confidant.config import Settings
 from confidant.models import Conversation
 from confidant.prompts.flags import FLAGS_SYSTEM, build_flags_request
+from confidant.safety import Escalation, escalate
 
 __all__ = [
     "DANGER_CATEGORIES",
@@ -38,6 +42,7 @@ __all__ = [
     "FlagReport",
     "FlagScan",
     "Severity",
+    "Escalation",
     "analyze_flags",
     "ground_flags",
     "quote_appears_in",
@@ -114,6 +119,14 @@ class FlagReport(BaseModel):
         default=0,
         description="Flags dropped because none of their quotes appear in the transcript.",
     )
+    discarded_danger: int = Field(
+        default=0,
+        description="How many of the discarded flags had been filed as danger.",
+    )
+    escalation: Escalation | None = Field(
+        default=None,
+        description="The safety notice, present whenever a danger flag survived grounding.",
+    )
 
     @property
     def highest_tier(self) -> int:
@@ -126,7 +139,11 @@ class FlagReport(BaseModel):
 
     def to_text(self) -> str:
         """Render the check for a terminal."""
-        out = [self.summary, ""]
+        out: list[str] = []
+        # First, above the model's own summary, which may be milder than its flags.
+        if self.escalation is not None:
+            out.extend([self.escalation.to_text(), ""])
+        out.extend([self.summary, ""])
 
         if not self.flags:
             out.append("Nothing in this transcript rises to a red flag.")
@@ -144,17 +161,25 @@ class FlagReport(BaseModel):
                 out.append(f"  Could also be: {flag.innocent_reading}")
             out.append("")
 
-        if self.has_danger:
-            out.append("Something here is serious. It is worth talking it through with")
-            out.append("someone you trust before you decide what to do next.")
-            out.append("")
-
         out.append(f"Confidence: {self.confidence}")
         if self.discarded:
             noun = "flag" if self.discarded == 1 else "flags"
             out.append(
                 f"({self.discarded} {noun} left out: the quotes behind them could not be "
                 "found in the transcript.)"
+            )
+        if self.discarded_danger:
+            # Grounding protects the match from an invented accusation, but the owner was
+            # there and this check was not. Dropping a danger flag silently would let the
+            # report sound more reassuring than it has earned.
+            which = (
+                "One of them was"
+                if self.discarded_danger == 1
+                else f"{self.discarded_danger} of them were"
+            )
+            out.append(
+                f"({which} filed as serious. If something in this conversation felt unsafe "
+                "to you, that counts for more than this check does.)"
             )
         return "\n".join(out)
 
@@ -216,16 +241,20 @@ def ground_flags(scan: FlagScan, conversation: Conversation) -> FlagReport:
     """Verify a model scan against the transcript and apply severity floors.
 
     Quotes that cannot be found are removed; a flag left with no quotes is dropped and
-    counted in ``discarded``. The result is sorted most serious first.
+    counted in ``discarded``. The result is sorted most serious first, and carries an
+    escalation if any danger flag remains.
     """
     match_texts = [m.text for m in conversation.match_messages]
     kept: list[Flag] = []
     discarded = 0
+    discarded_danger = 0
 
     for flag in scan.flags:
         evidence = [e for e in flag.evidence if quote_appears_in(e.quote, match_texts)]
         if not evidence:
             discarded += 1
+            if flag.severity == "danger" or flag.category in DANGER_CATEGORIES:
+                discarded_danger += 1
             continue
 
         severity = flag.severity
@@ -240,6 +269,8 @@ def ground_flags(scan: FlagScan, conversation: Conversation) -> FlagReport:
         summary=scan.summary,
         confidence=scan.confidence,
         discarded=discarded,
+        discarded_danger=discarded_danger,
+        escalation=escalate(kept, conversation.match_name),
     )
 
 

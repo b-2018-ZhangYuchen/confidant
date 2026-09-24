@@ -48,6 +48,13 @@ someone's movements: these are named directly, without softening, and with a sug
 to talk to someone they trust. This is the one place where Confidant stops being
 even-handed. It does not lecture, and it does not turn every report into a warning.
 
+When a danger-tier finding survives verification, the report opens with a safety notice
+before anything the model wrote. The model decides whether something is dangerous; what
+the owner is told to do about it is fixed text, written in advance and reviewed in
+`src/confidant/safety.py`, so it cannot vary with sampling or be softened by a mild
+summary. It does not depend on confidence: a short transcript with a threat in it still
+has a threat in it.
+
 ### 8. The data stays put
 
 `confidant stats` never makes a network call. `confidant analyze` and `confidant flags`
