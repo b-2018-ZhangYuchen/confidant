@@ -154,8 +154,28 @@ pytest          # tests, none of which call the API
 ruff check .
 ```
 
-Tests are offline by design. Anything that needs the model is exercised against recorded
-fixtures rather than live calls, so the suite is fast and free to run.
+Tests are offline by design, and the suite enforces it: any attempt to open a network
+connection fails the test. Anything that needs the model runs against a recorded response
+in `tests/fixtures/recorded/`, replayed where the SDK would be, so the refusal check,
+schema validation, grounding, and escalation all run for real.
+
+A recording stores the response and a hash of the request that produced it. Change a
+prompt and the recordings for it fail as stale, with the command that fixes them:
+
+```bash
+# Make a live call and save the response (needs an API key; examples/ only).
+python -m confidant.recording record flags examples/pressure_chat.txt \
+    tests/fixtures/recorded/flags_pressure.json
+
+# Re-fingerprint a hand-written recording, after reading it against the new prompt.
+python -m confidant.recording stamp tests/fixtures/recorded/flags_pressure.json
+```
+
+The recordings in the repository today are hand-written — marked `"provenance":
+"hand-written"` in the file — because they were made without an API key. They pin down
+the shapes that matter, including a refusal and a misquote that grounding has to catch.
+A live recording cannot be re-stamped: its response answers the old prompt, so the only
+honest fix is to record it again.
 
 ## License
 

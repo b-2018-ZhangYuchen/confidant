@@ -11,7 +11,7 @@ need something else first, and that reordering is part of the record.
 - [x] **Tue Sep 22** — Core models, transcript parser, personality read, CLI, CI
 - [x] **Wed Sep 23** — Red-flag detection with severity tiers, separate from the personality read
 - [x] **Thu Sep 24** — Safety escalation path: what happens when a tier-3 flag fires
-- [ ] **Fri Sep 25** — Recorded-fixture test harness so analysis logic is testable offline
+- [x] **Fri Sep 25** — Recorded-fixture test harness so analysis logic is testable offline
 - [ ] **Sat Sep 26** — Redaction layer — strip names, numbers, and addresses before the API call
 - [ ] **Sun Sep 27** — Streaming output, so a long analysis is not a blank terminal
 - [ ] **Mon Sep 28** — Week 1 cleanup: error messages, `--help` text, README accuracy pass

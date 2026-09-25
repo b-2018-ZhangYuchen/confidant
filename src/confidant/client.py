@@ -76,7 +76,12 @@ def structured_call(
     settings: Settings | None = None,
     client: anthropic.Anthropic | None = None,
 ) -> T:
-    """Ask the model one question and get back a validated ``schema`` instance."""
+    """Ask the model one question and get back a validated ``schema`` instance.
+
+    ``client`` is normally left out and built from ``settings``. Tests pass a
+    :class:`~confidant.recording.ReplayClient` here, so everything below runs against a
+    recorded response instead of being patched away.
+    """
     settings = settings or Settings.from_env()
     client = client or build_client(settings)
 

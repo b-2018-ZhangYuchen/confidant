@@ -25,6 +25,7 @@ import re
 import unicodedata
 from typing import Literal
 
+import anthropic
 from pydantic import BaseModel, Field
 
 from confidant.analysis.personality import Confidence, Evidence
@@ -278,6 +279,7 @@ def analyze_flags(
     conversation: Conversation,
     *,
     settings: Settings | None = None,
+    client: anthropic.Anthropic | None = None,
 ) -> FlagReport:
     """Check the match in ``conversation`` for red flags, grounded against the transcript."""
     if not conversation.match_messages:
@@ -290,5 +292,6 @@ def analyze_flags(
         system=FLAGS_SYSTEM,
         user_content=build_flags_request(conversation),
         settings=settings,
+        client=client,
     )
     return ground_flags(scan, conversation)

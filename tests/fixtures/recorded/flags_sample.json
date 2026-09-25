@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: the common case, a check that finds nothing.",
+  "source": {
+    "analysis": "flags",
+    "transcript": "examples/sample_chat.txt"
+  },
+  "request": {
+    "schema": "FlagScan",
+    "model": "claude-opus-5",
+    "system_sha256": "d62e9dc23d1280b92ec6d20bba21c471e67e7c88f4e862825623e8e82999c79f",
+    "messages_sha256": "d1c1720ff7e928fd7cafa366d8783462161654df4e64238160962d0755b7c0ca"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "flags": [],
+      "summary": "Nothing in Robin's messages rises to a red flag. When Sam went quiet for two days, Robin did not press or assign blame.",
+      "confidence": "medium"
+    }
+  }
+}

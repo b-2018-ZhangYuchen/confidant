@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available when the harness was built.",
+  "source": {
+    "analysis": "analyze",
+    "transcript": "examples/sample_chat.txt"
+  },
+  "request": {
+    "schema": "PersonalityReport",
+    "model": "claude-opus-5",
+    "system_sha256": "02ba2348f92537add642ae42f113744e5c5910e9ba67c366097582f38b710d01",
+    "messages_sha256": "9ef11480c780112748ab45b06c840e13a44b0ec11b334f343cb532f98f5ea5ac"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "headline": "Robin comes across as curious and playful, and keeps the conversation moving by picking up on what Sam says.",
+      "communication_style": "Often replies within minutes and usually ends on a question. Messages run longer than Sam's, with dry humor and small specific details. Robin does most of the steering, but mostly by following Sam's threads rather than changing the subject.",
+      "traits": [
+        {
+          "name": "remembers details and follows up",
+          "reading": "Robin brought back Sam's presentation a day later without prompting, and asked about the part that went wrong rather than accepting \"fine\".",
+          "confidence": "high",
+          "evidence": [
+            {
+              "quote": "how did the presentation go? you said it was thursday",
+              "why_it_matters": "Recalls something Sam mentioned in passing and checks in on it."
+            },
+            {
+              "quote": "\"fine\" is doing a lot of work in that sentence. what was the messy part",
+              "why_it_matters": "Notices a deflection and invites the real answer, lightly."
+            }
+          ]
+        },
+        {
+          "name": "moves toward meeting, with a light touch",
+          "reading": "Robin turned a shared detail into a first-date idea within the first hour, framed as a joke so it is easy to accept or leave.",
+          "confidence": "medium",
+          "evidence": [
+            {
+              "quote": "that's a first date now, I don't make the rules",
+              "why_it_matters": "Suggests meeting without putting Sam on the spot."
+            }
+          ]
+        },
+        {
+          "name": "asks what Sam needs instead of assuming",
+          "reading": "When Sam said the week had been hard, Robin offered a choice between talking and distraction, and went with Sam's answer.",
+          "confidence": "medium",
+          "evidence": [
+            {
+              "quote": "do you want to talk about it or be distracted",
+              "why_it_matters": "Lets Sam set the terms of the support."
+            },
+            {
+              "quote": "no apology needed",
+              "why_it_matters": "Does not make Sam's two-day silence into a problem."
+            }
+          ]
+        }
+      ],
+      "what_they_seem_to_want": "Robin seems interested in meeting and in getting to know Sam beyond small talk. The transcript does not say what kind of relationship Robin is looking for.",
+      "green_flags": [
+        "Followed up on the presentation a day later.",
+        "Responded to two days of silence with no guilt and a question about Sam's week."
+      ],
+      "worth_watching": [
+        "Robin carries more of the conversation than Sam does. That is a question about Sam's energy as much as Robin's, and worth noticing if it continues."
+      ],
+      "questions_to_ask": [
+        "Is the coffee cart still on? Suggesting a day would show whether the first-date joke was a real invitation.",
+        "What is Robin looking for right now? Nothing in the transcript answers it."
+      ],
+      "confidence": "medium",
+      "caveat": "Seventeen messages over three days show how Robin texts, not how Robin is in person or under strain."
+    }
+  }
+}

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import anthropic
 from pydantic import BaseModel, Field
 
 from confidant.client import structured_call
@@ -100,6 +101,7 @@ def analyze_personality(
     conversation: Conversation,
     *,
     settings: Settings | None = None,
+    client: anthropic.Anthropic | None = None,
 ) -> PersonalityReport:
     """Produce a :class:`PersonalityReport` for the match in ``conversation``."""
     if not conversation.match_messages:
@@ -112,4 +114,5 @@ def analyze_personality(
         system=PERSONALITY_SYSTEM,
         user_content=build_personality_request(conversation),
         settings=settings,
+        client=client,
     )

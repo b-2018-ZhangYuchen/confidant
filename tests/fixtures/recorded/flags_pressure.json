@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available when the harness was built. The fourth flag's quote is a deliberate paraphrase of Casey's words, the misquote grounding exists to catch.",
+  "source": {
+    "analysis": "flags",
+    "transcript": "examples/pressure_chat.txt"
+  },
+  "request": {
+    "schema": "FlagScan",
+    "model": "claude-opus-5",
+    "system_sha256": "d62e9dc23d1280b92ec6d20bba21c471e67e7c88f4e862825623e8e82999c79f",
+    "messages_sha256": "f176359bf1090e4529fc62bc965cfb9900ceaf0c79c1f97cbe629dc0f58924ee"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "flags": [
+        {
+          "category": "monitoring",
+          "severity": "danger",
+          "behavior": "Asked Jordan to send their location whenever they are out, pressed after Jordan declined, and later asked who Jordan was with just before midnight.",
+          "evidence": [
+            {
+              "quote": "send me your location next time you're out, I like knowing where you are",
+              "why_it_matters": "Asks for ongoing access to where Jordan is, not a one-off meeting point."
+            },
+            {
+              "quote": "come on, it's not a big deal. everyone does it",
+              "why_it_matters": "Pushes past Jordan's explicit discomfort instead of accepting it."
+            },
+            {
+              "quote": "who are you with right now",
+              "why_it_matters": "Checks up on Jordan's company while Jordan is out with friends."
+            }
+          ],
+          "innocent_reading": null
+        },
+        {
+          "category": "isolation",
+          "severity": "danger",
+          "behavior": "Met Jordan's plans with friends by saying the friends dislike Casey and that the time should be spent with Casey instead.",
+          "evidence": [
+            {
+              "quote": "your friends again? they don't even like me",
+              "why_it_matters": "Frames Jordan's friends as opposed to Casey."
+            },
+            {
+              "quote": "you should be spending that time with me",
+              "why_it_matters": "Casts time with friends as time owed to Casey."
+            }
+          ],
+          "innocent_reading": null
+        },
+        {
+          "category": "guilt_or_blame",
+          "severity": "concern",
+          "behavior": "When Jordan replied the next morning, Casey framed the gap as Jordan caring less.",
+          "evidence": [
+            {
+              "quote": "I guess I just care more than you do. whatever",
+              "why_it_matters": "Turns an ordinary overnight gap into a measure of Jordan's feelings."
+            }
+          ],
+          "innocent_reading": "Casey may have felt ignored overnight and said so clumsily."
+        },
+        {
+          "category": "boundary_pushing",
+          "severity": "concern",
+          "behavior": "Dismissed Jordan's no about sharing a location as unreasonable.",
+          "evidence": [
+            {
+              "quote": "it's no big deal, everybody shares their location",
+              "why_it_matters": "Treats a stated boundary as something to argue away."
+            }
+          ],
+          "innocent_reading": "Casey may genuinely think location sharing is routine."
+        }
+      ],
+      "summary": "Casey asks for Jordan's location, presses after Jordan declines, and treats time with friends as time taken from Casey.",
+      "confidence": "medium"
+    }
+  }
+}
