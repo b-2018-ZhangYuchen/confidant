@@ -1,6 +1,7 @@
 """Command line entry point.
 
 confidant stats    examples/sample_chat.txt      # local, no API call
+confidant redact   examples/details_chat.txt     # local: what would be sent
 confidant analyze  examples/sample_chat.txt      # calls Claude
 confidant flags    examples/sample_chat.txt      # calls Claude
 """
@@ -19,6 +20,8 @@ from confidant.client import ModelRefusal
 from confidant.config import ConfigError, Settings
 from confidant.ingest.transcript import TranscriptError, read_transcript
 from confidant.models import Conversation, Role
+from confidant.prompts.common import render_conversation
+from confidant.redaction import redact
 
 
 def _describe(conversation: Conversation) -> str:
@@ -44,6 +47,17 @@ def _describe(conversation: Conversation) -> str:
     return "\n".join(lines)
 
 
+def _preview(conversation: Conversation) -> str:
+    """The transcript exactly as the analyses would send it, then the key to it."""
+    redaction = redact(conversation)
+    lines = render_conversation(redaction.conversation)
+    lines += ["", f"Replaced: {redaction.summary()}.", "The key, which stays on your machine:"]
+    width = max(len(p) for p in redaction.originals)
+    for placeholder, original in redaction.originals.items():
+        lines.append(f"  {placeholder:<{width}}  {original}")
+    return "\n".join(lines)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="confidant",
@@ -54,6 +68,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     for name, help_text in (
         ("stats", "Show conversation statistics. Runs locally, no API call."),
+        ("redact", "Show what would be sent to Claude, after redaction. Runs locally."),
         ("analyze", "Ask Claude for a read on how the other person comes across."),
         ("flags", "Ask Claude to check the other person's messages for red flags."),
     ):
@@ -62,6 +77,15 @@ def _build_parser() -> argparse.ArgumentParser:
         sub.add_argument("--owner", help="Your name in the transcript.")
         sub.add_argument("--match", help="Their name in the transcript.")
 
+    for name in ("redact", "analyze", "flags"):
+        subcommands.choices[name].add_argument(
+            "--redact",
+            action="append",
+            default=[],
+            metavar="NAME",
+            dest="private_names",
+            help="Another person's name to strip before sending. Repeat for more than one.",
+        )
     for name in ("analyze", "flags"):
         subcommands.choices[name].add_argument(
             "--json", action="store_true", help="Print the raw report as JSON."
@@ -80,6 +104,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "stats":
         print(_describe(conversation))
+        return 0
+
+    conversation.private_names.extend(args.private_names)
+    if args.command == "redact":
+        print(_preview(conversation))
         return 0
 
     try:

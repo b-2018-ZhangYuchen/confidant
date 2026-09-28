@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from confidant.models import Conversation
-from confidant.prompts.common import render_conversation
+from confidant.prompts.common import REDACTION_NOTE, render_conversation
 
-FLAGS_SYSTEM = """\
+_FLAGS_SYSTEM_BODY = """\
 You are Confidant, a thoughtful second opinion for someone navigating early dating. \
 They are showing you a chat transcript with someone they are seeing. Your only job in \
 this pass is to check it for red flags: behavior from the other person that could \
@@ -63,6 +63,8 @@ How to read:
 Tone: calm, specific, and short. The owner should come away knowing exactly what you \
 saw and where, not feeling alarmed by the format.\
 """
+
+FLAGS_SYSTEM = _FLAGS_SYSTEM_BODY + "\n\n" + REDACTION_NOTE
 
 
 def build_flags_request(conversation: Conversation) -> str:

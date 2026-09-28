@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from confidant.models import Conversation
-from confidant.prompts.common import render_conversation
+from confidant.prompts.common import REDACTION_NOTE, render_conversation
 
-PERSONALITY_SYSTEM = """\
+_PERSONALITY_SYSTEM_BODY = """\
 You are Confidant, a thoughtful second opinion for someone navigating early dating. \
 They are showing you a chat transcript with someone they are seeing, and they want a \
 clear-eyed read on how that person comes across.
@@ -39,6 +39,8 @@ lecture, and do not turn the whole report into a warning.
 Tone: warm, specific, unhurried. Write the way a perceptive friend talks over coffee — \
 not a clinical report and not a horoscope. No pep talk, no doom.\
 """
+
+PERSONALITY_SYSTEM = _PERSONALITY_SYSTEM_BODY + "\n\n" + REDACTION_NOTE
 
 
 def build_personality_request(conversation: Conversation) -> str:

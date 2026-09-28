@@ -14,7 +14,8 @@ because that is what people actually do with their chat history::
 Rules:
 
 * ``# key: value`` lines at any point are directives; ``owner`` and ``match`` are read,
-  anything else is ignored so you can leave yourself notes.
+  as is ``redact``, a comma-separated list of other people's names to strip before the
+  transcript is sent anywhere. Anything else is ignored so you can leave yourself notes.
 * ``[timestamp] `` in front of a message is optional.
 * Indented lines continue the previous message, so multi-line messages survive a paste.
 * Blank lines are ignored.
@@ -93,6 +94,7 @@ def parse_transcript(
     way to tell whose side of the conversation is whose.
     """
     directives: dict[str, str] = {}
+    private_names: list[str] = []
     raw_messages: list[tuple[str, str, datetime | None]] = []
     known_senders: set[str] = set()
     # Names that looked like speakers but arrived after both slots were taken. A single
@@ -112,7 +114,14 @@ def parse_transcript(
         if raw_line.lstrip().startswith("#"):
             directive = _DIRECTIVE.match(raw_line.strip())
             if directive:
-                directives[directive["key"].casefold()] = directive["value"]
+                key = directive["key"].casefold()
+                # Accumulated rather than overwritten: names get added as they come up.
+                if key == "redact":
+                    private_names.extend(
+                        n.strip() for n in directive["value"].split(",") if n.strip()
+                    )
+                else:
+                    directives[key] = directive["value"]
             continue
 
         # Indented lines continue the message above them.
@@ -195,6 +204,7 @@ def parse_transcript(
         owner_name=owner_name,
         messages=messages,
         source=source,
+        private_names=private_names,
     )
 
 

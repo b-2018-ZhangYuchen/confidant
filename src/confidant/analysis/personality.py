@@ -17,6 +17,7 @@ from confidant.client import structured_call
 from confidant.config import Settings
 from confidant.models import Conversation
 from confidant.prompts.personality import PERSONALITY_SYSTEM, build_personality_request
+from confidant.redaction import redact
 
 __all__ = ["Confidence", "Evidence", "PersonalityReport", "Trait", "analyze_personality"]
 
@@ -109,10 +110,12 @@ def analyze_personality(
             f"{conversation.match_name} has no messages in this transcript — nothing to read."
         )
 
-    return structured_call(
+    redaction = redact(conversation)
+    report = structured_call(
         schema=PersonalityReport,
         system=PERSONALITY_SYSTEM,
-        user_content=build_personality_request(conversation),
+        user_content=build_personality_request(redaction.conversation),
         settings=settings,
         client=client,
     )
+    return redaction.restore(report)

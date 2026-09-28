@@ -9,15 +9,15 @@
   "request": {
     "schema": "FlagScan",
     "model": "claude-opus-5",
-    "system_sha256": "d62e9dc23d1280b92ec6d20bba21c471e67e7c88f4e862825623e8e82999c79f",
-    "messages_sha256": "d1c1720ff7e928fd7cafa366d8783462161654df4e64238160962d0755b7c0ca"
+    "system_sha256": "14b605d5bf217b2b64b0fccf7aebd4ba9be210eaeebc2025a641ed4f4599cb46",
+    "messages_sha256": "dde265e5315b0857a34fede00afb120669586004d932703c5f6f67f8259a2830"
   },
   "response": {
     "stop_reason": "end_turn",
     "stop_details": null,
     "output": {
       "flags": [],
-      "summary": "Nothing in Robin's messages rises to a red flag. When Sam went quiet for two days, Robin did not press or assign blame.",
+      "summary": "Nothing in [MATCH]'s messages rises to a red flag. When [OWNER] went quiet for two days, [MATCH] did not press or assign blame.",
       "confidence": "medium"
     }
   }

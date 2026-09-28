@@ -17,6 +17,9 @@ leave to the prompt alone:
 
 When a tier-3 flag survives both, the report carries an :class:`~confidant.safety.Escalation`
 and leads with it. What that notice says lives in ``confidant.safety``.
+
+The model only ever sees a redacted transcript (see ``confidant.redaction``), so grounding
+runs against that same redacted text, and names and details are put back last.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from confidant.client import structured_call
 from confidant.config import Settings
 from confidant.models import Conversation
 from confidant.prompts.flags import FLAGS_SYSTEM, build_flags_request
+from confidant.redaction import redact
 from confidant.safety import Escalation, escalate
 
 __all__ = [
@@ -287,11 +291,12 @@ def analyze_flags(
             f"{conversation.match_name} has no messages in this transcript — nothing to check."
         )
 
+    redaction = redact(conversation)
     scan = structured_call(
         schema=FlagScan,
         system=FLAGS_SYSTEM,
-        user_content=build_flags_request(conversation),
+        user_content=build_flags_request(redaction.conversation),
         settings=settings,
         client=client,
     )
-    return ground_flags(scan, conversation)
+    return redaction.restore(ground_flags(scan, redaction.conversation))

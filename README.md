@@ -24,6 +24,7 @@ Early and honest about it. Working today:
 |---|---|
 | ✅ | Transcript parsing (plain text, timestamps optional, multi-line messages) |
 | ✅ | Local conversation statistics — no API call, no data leaves your machine |
+| ✅ | Redaction of names, phone numbers, and addresses before anything is sent |
 | ✅ | Personality read backed by Claude, with quoted evidence and explicit confidence |
 | ✅ | Red-flag detection with severity tiers, every quote checked against the transcript |
 | ✅ | A fixed safety notice, printed first, whenever a danger-tier flag is found |
@@ -67,6 +68,9 @@ are comments. Then:
 ```bash
 # Local only — never touches the network. Good for checking your transcript parsed right.
 confidant stats examples/sample_chat.txt
+
+# Also local: exactly what would be sent to Claude, after redaction.
+confidant redact examples/details_chat.txt
 
 # Ask Claude for a read.
 confidant analyze examples/sample_chat.txt
@@ -135,17 +139,70 @@ dropped because its quotes could not be found, the report says so rather than go
 quiet about it. Region-specific crisis resources are on the roadmap; until then the
 notice points only at what is right everywhere.
 
+### What gets sent
+
+Before `analyze` or `flags` builds a request, the transcript is redacted on your machine.
+Both names become `[OWNER]` and `[MATCH]`; phone numbers, long account-like numbers,
+email addresses, street addresses, links, and social handles become numbered
+placeholders. The same detail always gets the same placeholder, so the model can still
+see that someone sent their number twice, and it answers in placeholders that are
+swapped back before you read the report. Money amounts, times, and dates are kept,
+because a request for $1500 is exactly what a red-flag check needs to see.
+
+Anyone else named in the conversation is only redacted if you say who they are, with a
+`# redact:` line in the transcript or `--redact NAME` on the command line. `confidant
+redact` shows you the result without calling anything, so you do not have to take any of
+this on trust:
+
+```bash
+confidant redact examples/details_chat.txt
+```
+
+prints
+
+```
+Owner (the person I am helping): [OWNER]
+Match (the person to analyze): [MATCH]
+Messages: 6 (2 owner / 4 match)
+Spanning: 0 days
+Average message length: match writes 0.80 words per owner word (context only — do not over-read it)
+
+--- TRANSCRIPT ---
+[2026-05-08 18:02] MATCH: dinner saturday still on? I booked the place at [ADDRESS_1]
+[2026-05-08 18:10] OWNER: yes! [NAME_1] is dropping me off, she wants to vet you from the car
+[2026-05-08 18:11] MATCH: fair. text me when you're close, my number is [PHONE_1]
+[2026-05-08 18:12] MATCH: or instagram, [HANDLE_1]. I'm slow on email ([EMAIL_1])
+[2026-05-08 18:20] OWNER: ha, got it. I'll bring the $40 I owe you from the concert
+[2026-05-08 18:21] MATCH: keep it, you got the drinks. tell [NAME_1] I said hi. see you at 7:30
+--- END TRANSCRIPT ---
+
+Replaced: 3 names, 1 phone number, 1 email address, 1 street address, 1 handle.
+The key, which stays on your machine:
+  [OWNER]      Priya
+  [MATCH]      Theo
+  [ADDRESS_1]  214 Linden Street
+  [NAME_1]     Maya
+  [PHONE_1]    (555) 010-4477
+  [HANDLE_1]   @theo.cooks
+  [EMAIL_1]    theo.m@example.com
+```
+
+This is pattern matching, not understanding. It catches the shapes that identify people
+in a chat; it does not catch "the bakery on the corner by my work". Read the preview
+before sending anything you would mind being seen.
+
 ## Your data
 
 Your chat history is about as private as data gets, and this repo is built around that:
 
 - `.gitignore` blocks `data/`, `transcripts/`, `conversations/`, `*.db`, and `.env`
   before you can make a mistake with them. The only conversations in this repository are
-  `examples/sample_chat.txt` and `examples/pressure_chat.txt`, both fictional.
-- `confidant stats` never makes a network call.
-- `confidant analyze` and `confidant flags` send the transcript to the Anthropic API and
-  nothing else — no telemetry, no analytics, no third parties. A local redaction layer is
-  on the roadmap.
+  `examples/sample_chat.txt`, `examples/pressure_chat.txt`, and
+  `examples/details_chat.txt`, all fictional.
+- `confidant stats` and `confidant redact` never make a network call.
+- `confidant analyze` and `confidant flags` send the redacted transcript to the Anthropic
+  API and nothing else — no telemetry, no analytics, no third parties. Names and contact
+  details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
 
 ## Development
 

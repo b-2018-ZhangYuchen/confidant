@@ -19,6 +19,7 @@ from confidant.analysis.personality import Evidence
 from confidant.cli import main
 from confidant.ingest.transcript import parse_transcript, read_transcript
 from confidant.prompts.flags import FLAGS_SYSTEM, build_flags_request
+from confidant.redaction import redact
 
 
 @pytest.fixture
@@ -191,9 +192,10 @@ def test_prompt_names_the_same_danger_categories_the_code_enforces():
 
 
 def test_request_tags_both_sides(pressure):
-    request = build_flags_request(pressure)
-    assert "MATCH (Casey): come on, it's not a big deal" in request
-    assert "OWNER (Jordan):" in request
+    request = build_flags_request(redact(pressure).conversation)
+    assert "MATCH: come on, it's not a big deal" in request
+    assert "OWNER: I'm not really comfortable sharing that yet" in request
+    assert "Casey" not in request and "Jordan" not in request
 
 
 # -- the analyzer, with the model faked -----------------------------------

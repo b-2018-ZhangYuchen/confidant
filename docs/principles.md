@@ -59,5 +59,8 @@ has a threat in it.
 
 `confidant stats` never makes a network call. `confidant analyze` and `confidant flags`
 send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
-third parties. The `.gitignore` blocks conversation data and `.env` before anyone can
+third parties. What they send is redacted first: names, phone numbers, email and street
+addresses, links, and handles are replaced with placeholders on the owner's machine, and
+put back only in the report the owner reads. The model does not need to know who anyone
+is to read how they write. The `.gitignore` blocks conversation data and `.env` before anyone can
 commit them by accident. The only conversations in this repository are fictional.

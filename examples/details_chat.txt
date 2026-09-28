@@ -1,0 +1,13 @@
+# Entirely fictional. Written to show what `confidant redact` strips before a transcript
+# is sent anywhere. The phone number is in the 555-01xx range set aside for fiction, and
+# example.com exists so that addresses like the one below belong to nobody.
+# owner: Priya
+# match: Theo
+# redact: Maya
+
+[2026-05-08 18:02] Theo: dinner saturday still on? I booked the place at 214 Linden Street
+[2026-05-08 18:10] Priya: yes! Maya is dropping me off, she wants to vet you from the car
+[2026-05-08 18:11] Theo: fair. text me when you're close, my number is (555) 010-4477
+[2026-05-08 18:12] Theo: or instagram, @theo.cooks. I'm slow on email (theo.m@example.com)
+[2026-05-08 18:20] Priya: ha, got it. I'll bring the $40 I owe you from the concert
+[2026-05-08 18:21] Theo: keep it, you got the drinks. tell Maya I said hi. see you at 7:30

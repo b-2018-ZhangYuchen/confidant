@@ -55,6 +55,9 @@ class Conversation:
     source: str | None = None
     """Where this came from — a file path, an export name, or ``None`` for in-memory."""
 
+    private_names: list[str] = field(default_factory=list)
+    """Other people named in the messages, redacted before anything is sent to a model."""
+
     def __len__(self) -> int:
         return len(self.messages)
 

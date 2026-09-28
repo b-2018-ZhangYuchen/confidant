@@ -9,8 +9,8 @@
   "request": {
     "schema": "PersonalityReport",
     "model": "claude-opus-5",
-    "system_sha256": "02ba2348f92537add642ae42f113744e5c5910e9ba67c366097582f38b710d01",
-    "messages_sha256": "9ef11480c780112748ab45b06c840e13a44b0ec11b334f343cb532f98f5ea5ac"
+    "system_sha256": "cda419e9ffe06bd148507d4977d65167c7bc142d2cfc701d0c7acba49113e363",
+    "messages_sha256": "1f063a59f72d8126177a8427379b95ca3e441a939f92ddd1d12eec13a29da5fc"
   },
   "response": {
     "stop_reason": "max_tokens",
