@@ -1,14 +1,15 @@
 """Thin wrapper over the Anthropic SDK.
 
-Every model call in Confidant goes through :func:`structured_call`, which keeps three
-things consistent across the codebase: adaptive thinking is on, responses are validated
-against a Pydantic schema, and a refusal is surfaced as an exception instead of quietly
-becoming an empty report.
+Every model call in Confidant goes through :func:`structured_call`, which keeps four
+things consistent across the codebase: adaptive thinking is on, the response is streamed,
+it is validated against a Pydantic schema, and a refusal is surfaced as an exception
+instead of quietly becoming an empty report.
 """
 
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
@@ -16,6 +17,7 @@ import anthropic
 from pydantic import BaseModel
 
 from confidant.config import ConfigError, Settings
+from confidant.progress import Progress, ProgressTracker
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -75,24 +77,37 @@ def structured_call(
     user_content: str,
     settings: Settings | None = None,
     client: anthropic.Anthropic | None = None,
+    on_progress: Callable[[Progress], None] | None = None,
 ) -> T:
     """Ask the model one question and get back a validated ``schema`` instance.
 
     ``client`` is normally left out and built from ``settings``. Tests pass a
     :class:`~confidant.recording.ReplayClient` here, so everything below runs against a
     recorded response instead of being patched away.
+
+    ``on_progress`` is told when the model starts thinking, starts writing, and moves on
+    to each part of the report. It never sees the report itself; see
+    :mod:`confidant.progress` for why.
     """
     settings = settings or Settings.from_env()
     client = client or build_client(settings)
 
-    response = client.messages.parse(
+    # Streamed whether or not anyone is watching, so there is one code path. It also
+    # keeps a raised CONFIDANT_MAX_TOKENS working: the SDK refuses a non-streaming
+    # request it expects to run past its ten-minute timeout.
+    with client.messages.stream(
         model=settings.model,
         max_tokens=settings.max_tokens,
         system=system,
         thinking={"type": "adaptive"},
         messages=[{"role": "user", "content": user_content}],
         output_format=schema,
-    )
+    ) as stream:
+        if on_progress is not None:
+            tracker = ProgressTracker(on_progress)
+            for event in stream:
+                tracker.feed(event)
+        response = stream.get_final_message()
 
     if response.stop_reason == "refusal":
         details = getattr(response, "stop_details", None)

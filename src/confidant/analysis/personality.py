@@ -8,6 +8,7 @@ prose.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Literal
 
 import anthropic
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from confidant.client import structured_call
 from confidant.config import Settings
 from confidant.models import Conversation
+from confidant.progress import Progress
 from confidant.prompts.personality import PERSONALITY_SYSTEM, build_personality_request
 from confidant.redaction import redact
 
@@ -103,6 +105,7 @@ def analyze_personality(
     *,
     settings: Settings | None = None,
     client: anthropic.Anthropic | None = None,
+    on_progress: Callable[[Progress], None] | None = None,
 ) -> PersonalityReport:
     """Produce a :class:`PersonalityReport` for the match in ``conversation``."""
     if not conversation.match_messages:
@@ -117,5 +120,6 @@ def analyze_personality(
         user_content=build_personality_request(redaction.conversation),
         settings=settings,
         client=client,
+        on_progress=on_progress,
     )
     return redaction.restore(report)

@@ -31,7 +31,7 @@ import argparse
 import hashlib
 import json
 import sys
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -85,7 +85,7 @@ class Fingerprint:
 
     @classmethod
     def of(cls, request: dict[str, Any]) -> Fingerprint:
-        """Fingerprint the keyword arguments of a ``messages.parse`` call."""
+        """Fingerprint the keyword arguments of a ``messages.stream`` call."""
         schema = request["output_format"]
         return cls(
             schema=schema.__name__,
@@ -203,6 +203,23 @@ class Recording:
             model=self.model,
         )
 
+    def events(self, chunk_size: int = 48) -> Iterator[SimpleNamespace]:
+        """Rebuild the stream events a live call would have produced, in miniature.
+
+        Only the ones Confidant reads: a thinking block, then (unless the model refused
+        before writing anything) a text block delivered in chunks, each with the text so
+        far. That is enough for progress reporting to run for real against a replay.
+        """
+        yield SimpleNamespace(type="content_block_start", content_block=_block("thinking"))
+        if self.output is None:
+            return
+        yield SimpleNamespace(type="content_block_start", content_block=_block("text"))
+        text = json.dumps(self.output, ensure_ascii=False)
+        for end in range(chunk_size, len(text) + chunk_size, chunk_size):
+            yield SimpleNamespace(
+                type="text", text=text[end - chunk_size : end], snapshot=text[:end]
+            )
+
     def _describe(self) -> str:
         return str(self.path) if self.path else "the recording"
 
@@ -222,13 +239,37 @@ class Recording:
         return fix + "."
 
 
+def _block(kind: str) -> SimpleNamespace:
+    return SimpleNamespace(type=kind)
+
+
 # -- clients ------------------------------------------------------------------
+
+
+class _ReplayStream:
+    """What ``messages.stream(...)`` returns: a context manager that is also the stream."""
+
+    def __init__(self, recording: Recording, schema: type[BaseModel]) -> None:
+        self._recording = recording
+        self._schema = schema
+
+    def __enter__(self) -> _ReplayStream:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        return None
+
+    def __iter__(self) -> Iterator[SimpleNamespace]:
+        return self._recording.events()
+
+    def get_final_message(self) -> SimpleNamespace:
+        return self._recording.response_for(self._schema)
 
 
 class ReplayClient:
     """Stands in for ``anthropic.Anthropic``, answering from recordings in order.
 
-    Each ``messages.parse`` call consumes the next recording. A call with no recording
+    Each ``messages.stream`` call consumes the next recording. A call with no recording
     left, or one whose fingerprint does not match, is an error: the point is to notice
     when the code starts asking the model something different. ``remaining`` shows the
     opposite case, a recording that nothing asked for.
@@ -238,13 +279,13 @@ class ReplayClient:
         self._queue = [r if isinstance(r, Recording) else Recording.load(r) for r in recordings]
         self._strict = strict
         self.requests: list[dict[str, Any]] = []
-        self.messages = SimpleNamespace(parse=self._parse)
+        self.messages = SimpleNamespace(stream=self._stream)
 
     @property
     def remaining(self) -> int:
         return len(self._queue)
 
-    def _parse(self, **request: Any) -> SimpleNamespace:
+    def _stream(self, **request: Any) -> _ReplayStream:
         self.requests.append(request)
         if not self._queue:
             raise RecordingError(
@@ -257,7 +298,7 @@ class ReplayClient:
             raise StaleRecording(
                 f"{recording._describe()} is stale: {'; '.join(changed)}. {recording._remedy()}"
             )
-        return recording.response_for(request["output_format"])
+        return _ReplayStream(recording, request["output_format"])
 
 
 class RecordingClient:
@@ -276,10 +317,12 @@ class RecordingClient:
         self._source = source or {}
         self._note = note
         self.saved: list[Path] = []
-        self.messages = SimpleNamespace(parse=self._parse)
+        self.messages = SimpleNamespace(stream=self._stream)
 
-    def _parse(self, **request: Any) -> Any:
-        response = self._inner.messages.parse(**request)
+    def _stream(self, **request: Any) -> _RecordingStream:
+        return _RecordingStream(self, self._inner.messages.stream(**request), request)
+
+    def _save(self, request: dict[str, Any], response: Any) -> None:
         parsed = getattr(response, "parsed_output", None)
         details = getattr(response, "stop_details", None)
         recording = Recording(
@@ -298,7 +341,33 @@ class RecordingClient:
         if self.saved:
             path = path.with_name(f"{path.stem}.{len(self.saved) + 1}{path.suffix}")
         self.saved.append(recording.save(path))
-        return response
+
+
+class _RecordingStream:
+    """Passes a live stream through untouched, and saves the response once it is whole."""
+
+    def __init__(self, owner: RecordingClient, manager: Any, request: dict[str, Any]) -> None:
+        self._owner = owner
+        self._manager = manager
+        self._request = request
+        self._stream: Any = None
+        self._response: Any = None
+
+    def __enter__(self) -> _RecordingStream:
+        self._stream = self._manager.__enter__()
+        return self
+
+    def __exit__(self, *exc_info: Any) -> Any:
+        return self._manager.__exit__(*exc_info)
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(self._stream)
+
+    def get_final_message(self) -> Any:
+        if self._response is None:
+            self._response = self._stream.get_final_message()
+            self._owner._save(self._request, self._response)
+        return self._response
 
 
 def _as_dict(details: Any) -> dict[str, Any] | None:

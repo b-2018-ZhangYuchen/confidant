@@ -208,11 +208,24 @@ def test_a_missing_field_is_named(tmp_path):
 
 
 class FakeSDK:
-    """Answers ``messages.parse`` the way the SDK does, from a canned object."""
+    """Answers ``messages.stream`` the way the SDK does, from a canned object."""
 
-    def __init__(self, response):
+    def __init__(self, response, events=()):
         self.response = response
-        self.messages = SimpleNamespace(parse=lambda **_: self.response)
+        self.events = list(events)
+        self.messages = SimpleNamespace(stream=lambda **_: self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return None
+
+    def __iter__(self):
+        return iter(self.events)
+
+    def get_final_message(self):
+        return self.response
 
 
 def test_a_recorded_response_replays_to_the_same_report(tmp_path, recording):

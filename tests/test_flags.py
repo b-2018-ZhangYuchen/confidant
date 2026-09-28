@@ -246,7 +246,7 @@ def fake_flags(monkeypatch, pressure):
         pressure,
     )
     monkeypatch.setattr("confidant.cli.Settings.from_env", lambda: None)
-    monkeypatch.setattr("confidant.cli.analyze_flags", lambda conversation, settings: report)
+    monkeypatch.setattr("confidant.cli.analyze_flags", lambda conversation, **_: report)
 
 
 def test_cli_flags_prints_the_report(capsys, fake_flags):

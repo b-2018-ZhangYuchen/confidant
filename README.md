@@ -28,6 +28,7 @@ Early and honest about it. Working today:
 | ✅ | Personality read backed by Claude, with quoted evidence and explicit confidence |
 | ✅ | Red-flag detection with severity tiers, every quote checked against the transcript |
 | ✅ | A fixed safety notice, printed first, whenever a danger-tier flag is found |
+| ✅ | A live progress line while Claude works, so a long read is not a blank terminal |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -92,6 +93,19 @@ Sam <-> Robin
   spans            3 days
   last message     2026-03-05 21:36
 ```
+
+While `analyze` or `flags` is waiting on Claude, a single line on stderr says what stage
+it has reached, and rewrites itself as it goes:
+
+```
+confidant: writing the report: green flags... 23s
+```
+
+It names the stage and the part of the report being written, never the content. The
+report is printed only once it is whole, because a flag is not shown to you until its
+quotes have been checked against the transcript, and a half-streamed report has not been
+checked yet. The line appears only when stderr is a terminal, so piping `--json` into
+another program gets clean output; `--no-progress` turns it off anyway.
 
 `analyze` gives you the considered read — traits with quoted evidence, green flags,
 things worth watching, questions worth asking, and a stated confidence level.

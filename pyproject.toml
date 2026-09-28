@@ -21,6 +21,8 @@ classifiers = [
 ]
 dependencies = [
   "anthropic>=0.40",
+  # Already an anthropic dependency; listed because progress.py reads partial JSON with it.
+  "jiter>=0.5",
   "pydantic>=2.7",
   "python-dotenv>=1.0",
 ]

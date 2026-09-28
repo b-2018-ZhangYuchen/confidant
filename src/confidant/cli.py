@@ -9,6 +9,7 @@ confidant flags    examples/sample_chat.txt      # calls Claude
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 
 import anthropic
@@ -20,6 +21,7 @@ from confidant.client import ModelRefusal
 from confidant.config import ConfigError, Settings
 from confidant.ingest.transcript import TranscriptError, read_transcript
 from confidant.models import Conversation, Role
+from confidant.progress import StatusLine
 from confidant.prompts.common import render_conversation
 from confidant.redaction import redact
 
@@ -90,6 +92,12 @@ def _build_parser() -> argparse.ArgumentParser:
         subcommands.choices[name].add_argument(
             "--json", action="store_true", help="Print the raw report as JSON."
         )
+        subcommands.choices[name].add_argument(
+            "--no-progress",
+            action="store_false",
+            dest="progress",
+            help="Do not show the progress line while Claude works.",
+        )
     return parser
 
 
@@ -114,7 +122,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         settings = Settings.from_env()
         analyze = analyze_flags if args.command == "flags" else analyze_personality
-        report = analyze(conversation, settings=settings)
+        # Progress goes to stderr, and only to a terminal: piped into a file or another
+        # program, a line that rewrites itself is just noise.
+        status = StatusLine() if args.progress and sys.stderr.isatty() else None
+        with status or contextlib.nullcontext():
+            report = analyze(conversation, settings=settings, on_progress=status)
     except ConfigError as exc:
         print(f"confidant: {exc}", file=sys.stderr)
         return 2

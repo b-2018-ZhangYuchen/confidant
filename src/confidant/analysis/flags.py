@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Callable
 from typing import Literal
 
 import anthropic
@@ -35,6 +36,7 @@ from confidant.analysis.personality import Confidence, Evidence
 from confidant.client import structured_call
 from confidant.config import Settings
 from confidant.models import Conversation
+from confidant.progress import Progress
 from confidant.prompts.flags import FLAGS_SYSTEM, build_flags_request
 from confidant.redaction import redact
 from confidant.safety import Escalation, escalate
@@ -284,6 +286,7 @@ def analyze_flags(
     *,
     settings: Settings | None = None,
     client: anthropic.Anthropic | None = None,
+    on_progress: Callable[[Progress], None] | None = None,
 ) -> FlagReport:
     """Check the match in ``conversation`` for red flags, grounded against the transcript."""
     if not conversation.match_messages:
@@ -298,5 +301,6 @@ def analyze_flags(
         user_content=build_flags_request(redaction.conversation),
         settings=settings,
         client=client,
+        on_progress=on_progress,
     )
     return redaction.restore(ground_flags(scan, redaction.conversation))
