@@ -218,6 +218,31 @@ Your chat history is about as private as data gets, and this repo is built aroun
   API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
 
+## Settings and exit codes
+
+Everything is set through the environment, or a `.env` file in the directory you run
+from:
+
+| Variable | Default | |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — | Needed for `analyze` and `flags`; `stats` and `redact` never use it. |
+| `CONFIDANT_MODEL` | `claude-opus-5` | |
+| `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
+| `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
+
+`confidant --help` lists the same, with examples, and every subcommand's `--help` shows
+the transcript format. Every failure is one sentence on stderr, never a traceback, and
+the exit code says what kind it was:
+
+```
+exit codes:
+  0    success
+  2    the transcript or configuration needs fixing
+  3    Claude declined the request
+  4    the API call failed, or its answer was incomplete
+  130  cancelled with Ctrl-C
+```
+
 ## Development
 
 ```bash

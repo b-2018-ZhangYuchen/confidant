@@ -14,14 +14,14 @@ from pathlib import Path
 from typing import TypeVar
 
 import anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from confidant.config import ConfigError, Settings
 from confidant.progress import Progress, ProgressTracker
 
 T = TypeVar("T", bound=BaseModel)
 
-__all__ = ["ModelRefusal", "build_client", "structured_call"]
+__all__ = ["IncompleteResponse", "ModelRefusal", "build_client", "structured_call"]
 
 
 class ModelRefusal(RuntimeError):
@@ -36,6 +36,29 @@ class ModelRefusal(RuntimeError):
         self.explanation = explanation
         detail = explanation or "no explanation given"
         super().__init__(f"The model declined this request ({category or 'unspecified'}): {detail}")
+
+
+class IncompleteResponse(RuntimeError):
+    """The model answered, but not with a whole report.
+
+    In practice this is almost always the token limit: a long transcript plus adaptive
+    thinking can run out before the JSON closes. Saying so, with the setting that fixes
+    it, beats a pydantic traceback about an unexpected end of input.
+    """
+
+    def __init__(self, stop_reason: str | None, max_tokens: int) -> None:
+        self.stop_reason = stop_reason
+        if stop_reason in ("max_tokens", None):
+            # None: the stream failed to parse before the stop reason arrived, which is
+            # how a cut-off answer shows up when streaming.
+            detail = (
+                f"Claude's answer was cut off before the report was finished "
+                f"(CONFIDANT_MAX_TOKENS={max_tokens}). Raise CONFIDANT_MAX_TOKENS, or "
+                "lower CONFIDANT_EFFORT, and try again."
+            )
+        else:
+            detail = f"Claude stopped without returning a report (stop_reason={stop_reason!r})."
+        super().__init__(detail)
 
 
 def _credentials_available(settings: Settings) -> bool:
@@ -65,7 +88,7 @@ def build_client(settings: Settings | None = None) -> anthropic.Anthropic:
         raise ConfigError(
             "No Anthropic credentials found. Copy .env.example to .env and set "
             "ANTHROPIC_API_KEY, or export it in your shell. "
-            "(`confidant stats` works without a key.)"
+            "(`confidant stats` and `confidant redact` work without a key.)"
         )
     return anthropic.Anthropic(api_key=settings.api_key)
 
@@ -95,19 +118,27 @@ def structured_call(
     # Streamed whether or not anyone is watching, so there is one code path. It also
     # keeps a raised CONFIDANT_MAX_TOKENS working: the SDK refuses a non-streaming
     # request it expects to run past its ten-minute timeout.
-    with client.messages.stream(
-        model=settings.model,
-        max_tokens=settings.max_tokens,
-        system=system,
-        thinking={"type": "adaptive"},
-        messages=[{"role": "user", "content": user_content}],
-        output_format=schema,
-    ) as stream:
-        if on_progress is not None:
-            tracker = ProgressTracker(on_progress)
-            for event in stream:
-                tracker.feed(event)
-        response = stream.get_final_message()
+    try:
+        with client.messages.stream(
+            model=settings.model,
+            max_tokens=settings.max_tokens,
+            system=system,
+            thinking={"type": "adaptive"},
+            output_config={"effort": settings.effort},
+            messages=[{"role": "user", "content": user_content}],
+            output_format=schema,
+        ) as stream:
+            if on_progress is not None:
+                tracker = ProgressTracker(on_progress)
+                for event in stream:
+                    tracker.feed(event)
+            response = stream.get_final_message()
+    except ValidationError as exc:
+        # Only unfinished JSON means a cut-off answer. Valid JSON in the wrong shape is a
+        # schema problem (a stale recording, usually) and should surface as itself.
+        if all(error["type"] == "json_invalid" for error in exc.errors()):
+            raise IncompleteResponse(None, settings.max_tokens) from exc
+        raise
 
     if response.stop_reason == "refusal":
         details = getattr(response, "stop_details", None)
@@ -118,7 +149,5 @@ def structured_call(
 
     parsed = response.parsed_output
     if parsed is None:
-        raise RuntimeError(
-            f"Model returned no structured output (stop_reason={response.stop_reason!r})"
-        )
+        raise IncompleteResponse(response.stop_reason, settings.max_tokens)
     return parsed

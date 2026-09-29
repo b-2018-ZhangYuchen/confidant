@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from confidant.analysis.flags import FlagReport, FlagScan, quote_appears_in
 from confidant.analysis.personality import PersonalityReport
 from confidant.cli import main
-from confidant.client import ModelRefusal
+from confidant.client import IncompleteResponse, ModelRefusal
 from confidant.ingest.transcript import read_transcript
 from confidant.recording import (
     Fingerprint,
@@ -55,7 +55,7 @@ def test_every_recording_is_current_and_replays(path):
         with pytest.raises(ModelRefusal):
             replay(recording)
     elif recording.output is None:
-        with pytest.raises(RuntimeError, match="no structured output"):
+        with pytest.raises(IncompleteResponse, match="cut off"):
             replay(recording)
     else:
         assert replay(recording) is not None

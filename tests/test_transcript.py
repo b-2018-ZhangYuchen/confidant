@@ -156,3 +156,15 @@ def test_the_bundled_example_parses():
     assert conversation.match_name == "Robin"
     assert len(conversation) == 17
     assert conversation.messages[0].timestamp == datetime(2026, 3, 2, 19, 4)
+
+
+def test_a_folder_is_not_a_transcript(tmp_path):
+    with pytest.raises(TranscriptError, match="is a folder"):
+        read_transcript(tmp_path)
+
+
+def test_a_file_that_is_not_utf8_is_named_as_such(tmp_path):
+    path = tmp_path / "export.txt"
+    path.write_bytes("Robin: caf\xe9?\n".encode("latin-1"))
+    with pytest.raises(TranscriptError, match="not UTF-8 text"):
+        read_transcript(path)

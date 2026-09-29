@@ -154,14 +154,17 @@ def parse_transcript(
         else:
             raise TranscriptError(
                 f"Line {lineno} is not a message and there is nothing before it to "
-                f"attach it to: {line!r}"
+                f"attach it to: {line!r}. Messages look like 'Name: text' or "
+                "'[2026-03-02 19:04] Name: text'; indent a line to continue the one above."
             )
 
     owner_name = owner or directives.get("owner")
     match_name = match or directives.get("match")
 
     if not raw_messages:
-        raise TranscriptError("Transcript contains no messages")
+        raise TranscriptError(
+            "Transcript contains no messages. Messages look like 'Name: text', one per line."
+        )
 
     senders_in_order: list[str] = []
     for sender, _, _ in raw_messages:
@@ -171,7 +174,7 @@ def parse_transcript(
     if owner_name is None:
         raise TranscriptError(
             "Cannot tell which side of this conversation is yours. Add a '# owner: <name>' "
-            f"line to the transcript or pass owner=... (speakers found: {senders_in_order})"
+            f"line to the transcript or pass --owner NAME (speakers found: {senders_in_order})"
         )
 
     others = [s for s in senders_in_order if s.casefold() != owner_name.casefold()]
@@ -181,7 +184,7 @@ def parse_transcript(
         raise TranscriptError(
             "Confidant handles one-on-one conversations, but these also appear to be "
             f"speaking: {extra}. If those are not people, rename them; if the owner or "
-            "match name is wrong, pass owner=... / match=... explicitly."
+            "match name is wrong, pass --owner NAME / --match NAME explicitly."
         )
     # A stale '# match:' directive naming the owner is worse than no directive at all.
     if match_name is None or match_name.casefold() == owner_name.casefold():
@@ -220,4 +223,13 @@ def read_transcript(
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         raise TranscriptError(f"No transcript at {path}") from exc
+    except IsADirectoryError as exc:
+        raise TranscriptError(f"{path} is a folder; give the path to one transcript file") from exc
+    except PermissionError as exc:
+        raise TranscriptError(f"Not allowed to read {path}") from exc
+    except UnicodeDecodeError as exc:
+        # Usually a chat app's export in another encoding, or not a text file at all.
+        raise TranscriptError(
+            f"{path} is not UTF-8 text. If it is a chat export, re-save it as UTF-8 plain text."
+        ) from exc
     return parse_transcript(text, owner=owner, match=match, source=str(path))
