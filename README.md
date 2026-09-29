@@ -29,6 +29,7 @@ Early and honest about it. Working today:
 | ✅ | Red-flag detection with severity tiers, every quote checked against the transcript |
 | ✅ | A fixed safety notice, printed first, whenever a danger-tier flag is found |
 | ✅ | A live progress line while Claude works, so a long read is not a blank terminal |
+| 🔜 | Remembering people across conversations — the local store is in, the commands that use it are next |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -214,6 +215,14 @@ Your chat history is about as private as data gets, and this repo is built aroun
   `examples/sample_chat.txt`, `examples/pressure_chat.txt`, and
   `examples/details_chat.txt`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
+- Once Confidant remembers people between runs (the store is built; `add`, `list`, and
+  `show` are next on the roadmap), it keeps them in one SQLite file at
+  `~/.confidant/confidant.db`, or wherever `CONFIDANT_DB` points. It is in your home
+  directory rather than wherever you ran the command, so it cannot end up inside a git
+  checkout; it is readable only by you (`0600`, in a `0700` folder); and deleting a person
+  overwrites their messages instead of leaving them recoverable in the file. It holds
+  the conversations as you wrote them — redaction happens on the way to the API, not on
+  the way to disk.
 - `confidant analyze` and `confidant flags` send the redacted transcript to the Anthropic
   API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
