@@ -19,7 +19,7 @@ need something else first, and that reordering is part of the record.
 ## Week 2 — More than one conversation
 
 - [x] **Tue Sep 29** — SQLite store for people and conversations
-- [ ] **Wed Sep 30** — `confidant add` / `list` / `show` — manage who you are seeing
+- [x] **Wed Sep 30** — `confidant add` / `list` / `show` — manage who you are seeing
 - [ ] **Thu Oct 01** — Incremental ingest: append new messages without re-reading everything
 - [ ] **Fri Oct 02** — Per-person profile that accumulates across conversations
 - [ ] **Sat Oct 03** — Timeline view — how the dynamic changed over weeks

@@ -38,6 +38,7 @@ __all__ = [
     "StoredConversation",
     "UnknownPerson",
     "default_db_path",
+    "name_key",
 ]
 
 
@@ -134,7 +135,8 @@ _MIGRATIONS: tuple[str, ...] = (
 SCHEMA_VERSION = len(_MIGRATIONS)
 
 
-def _name_key(name: str) -> str:
+def name_key(name: str) -> str:
+    """How the store compares names: spacing collapsed, case folded."""
     return " ".join(name.split()).casefold()
 
 
@@ -244,7 +246,7 @@ class Store:
             with self._conn:
                 cursor = self._conn.execute(
                     "INSERT INTO people (name, name_key, added_at) VALUES (?, ?, ?)",
-                    (name, _name_key(name), _stamp(added_at)),
+                    (name, name_key(name), _stamp(added_at)),
                 )
         except sqlite3.IntegrityError as exc:
             existing = self.find_person(name)
@@ -254,7 +256,7 @@ class Store:
 
     def find_person(self, name: str) -> Person | None:
         row = self._conn.execute(
-            "SELECT id, name, added_at FROM people WHERE name_key = ?", (_name_key(name),)
+            "SELECT id, name, added_at FROM people WHERE name_key = ?", (name_key(name),)
         ).fetchone()
         return self._person(row) if row else None
 

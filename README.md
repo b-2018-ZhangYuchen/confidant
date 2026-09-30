@@ -29,7 +29,8 @@ Early and honest about it. Working today:
 | ✅ | Red-flag detection with severity tiers, every quote checked against the transcript |
 | ✅ | A fixed safety notice, printed first, whenever a danger-tier flag is found |
 | ✅ | A live progress line while Claude works, so a long read is not a blank terminal |
-| 🔜 | Remembering people across conversations — the local store is in, the commands that use it are next |
+| ✅ | Remembering who you are seeing — `add`, `list`, `show`, and `remove`, in a private local file |
+| 🔜 | A per-person profile that builds up across conversations |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -154,6 +155,38 @@ dropped because its quotes could not be found, the report says so rather than go
 quiet about it. Region-specific crisis resources are on the roadmap; until then the
 notice points only at what is right everywhere.
 
+### Keeping track of people
+
+Confidant can remember who you are seeing and the conversations you have had with them.
+None of this touches the network:
+
+```bash
+confidant add Robin examples/sample_chat.txt    # save Robin, with a conversation
+confidant add Casey examples/pressure_chat.txt
+confidant add Robin later_chat.txt              # add another to someone already saved
+confidant list
+confidant show Robin                            # the stats for each saved conversation
+confidant remove Casey                          # asks first; --yes to skip the question
+```
+
+`list` shows everyone at a glance:
+
+```
+NAME   CONVERSATIONS  MESSAGES  LAST MESSAGE
+Casey  1              10        2026-04-12 09:20
+Robin  1              17        2026-03-05 21:36
+```
+
+`add` without a transcript saves just the name. Saving the same chat twice keeps one
+copy, so re-running a command is harmless. A transcript whose other speaker is someone
+else is refused rather than filed under the wrong person — a chat with Casey saved under
+Robin would quietly mix two histories. If an export spells their name differently, say
+so with `--match`:
+
+```bash
+confidant add Robin robin_export.txt --match "Robin 🌻"
+```
+
 ### What gets sent
 
 Before `analyze` or `flags` builds a request, the transcript is redacted on your machine.
@@ -215,14 +248,13 @@ Your chat history is about as private as data gets, and this repo is built aroun
   `examples/sample_chat.txt`, `examples/pressure_chat.txt`, and
   `examples/details_chat.txt`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
-- Once Confidant remembers people between runs (the store is built; `add`, `list`, and
-  `show` are next on the roadmap), it keeps them in one SQLite file at
-  `~/.confidant/confidant.db`, or wherever `CONFIDANT_DB` points. It is in your home
-  directory rather than wherever you ran the command, so it cannot end up inside a git
-  checkout; it is readable only by you (`0600`, in a `0700` folder); and deleting a person
-  overwrites their messages instead of leaving them recoverable in the file. It holds
-  the conversations as you wrote them — redaction happens on the way to the API, not on
-  the way to disk.
+- `confidant add`, `list`, `show`, and `remove` never make a network call either. They
+  keep people and conversations in one SQLite file at `~/.confidant/confidant.db`, or
+  wherever `CONFIDANT_DB` points. It is in your home directory rather than wherever you
+  ran the command, so it cannot end up inside a git checkout; it is readable only by you
+  (`0600`, in a `0700` folder); and `confidant remove` overwrites a person's messages
+  instead of leaving them recoverable in the file. It holds the conversations as you
+  wrote them — redaction happens on the way to the API, not on the way to disk.
 - `confidant analyze` and `confidant flags` send the redacted transcript to the Anthropic
   API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
@@ -238,6 +270,7 @@ from:
 | `CONFIDANT_MODEL` | `claude-opus-5` | |
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
+| `CONFIDANT_DB` | `~/.confidant/confidant.db` | Where `add`, `list`, `show`, and `remove` keep people and conversations. |
 
 `confidant --help` lists the same, with examples, and every subcommand's `--help` shows
 the transcript format. Every failure is one sentence on stderr, never a traceback, and
