@@ -30,6 +30,7 @@ Early and honest about it. Working today:
 | ✅ | A fixed safety notice, printed first, whenever a danger-tier flag is found |
 | ✅ | A live progress line while Claude works, so a long read is not a blank terminal |
 | ✅ | Remembering who you are seeing — `add`, `list`, `show`, and `remove`, in a private local file |
+| ✅ | Incremental saves — a newer export of a saved chat adds only the new messages |
 | 🔜 | A per-person profile that builds up across conversations |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
@@ -177,8 +178,23 @@ Casey  1              10        2026-04-12 09:20
 Robin  1              17        2026-03-05 21:36
 ```
 
-`add` without a transcript saves just the name. Saving the same chat twice keeps one
-copy, so re-running a command is harmless. A transcript whose other speaker is someone
+`add` without a transcript saves just the name. Chats keep going, so saving is
+incremental: export the conversation again next week and `add` it, and only the messages
+after the ones already saved are added, to the same conversation rather than a second
+copy of it:
+
+```
+Added 7 new messages from robin_week2.txt to #1 (17 in all).
+```
+
+The new export can start anywhere, as long as its first messages are the last ones
+already saved; `confidant show` then says when that conversation was last added to.
+Saving a chat whose messages are all saved already — the same file twice, or an older,
+shorter export — adds nothing, so re-running a command is harmless. Messages are matched
+on who sent them, what they said, and when, exactly, so an edited message starts a new
+conversation rather than being merged into the old one. Without timestamps, at least
+three messages have to line up before Confidant treats them as the same chat, because
+plenty of different chats open with the same "hey" and "hi". A transcript whose other speaker is someone
 else is refused rather than filed under the wrong person — a chat with Casey saved under
 Robin would quietly mix two histories. If an export spells their name differently, say
 so with `--match`:

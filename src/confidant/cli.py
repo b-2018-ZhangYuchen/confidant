@@ -30,7 +30,14 @@ from confidant.models import Conversation, Role
 from confidant.progress import StatusLine
 from confidant.prompts.common import render_conversation
 from confidant.redaction import redact
-from confidant.store import Store, StoredConversation, StoreError, UnknownPerson, name_key
+from confidant.store import (
+    SaveOutcome,
+    Store,
+    StoredConversation,
+    StoreError,
+    UnknownPerson,
+    name_key,
+)
 
 
 def _describe(conversation: Conversation) -> str:
@@ -94,7 +101,10 @@ def _people_table(store: Store) -> str:
 
 def _conversation_heading(stored: StoredConversation) -> str:
     source = stored.source or "(no source)"
-    return f"#{stored.id}  {source}, saved {_when(stored.imported_at)}"
+    heading = f"#{stored.id}  {source}, saved {_when(stored.imported_at)}"
+    if stored.updated_at is not None:
+        heading += f", updated {_when(stored.updated_at)}"
+    return heading
 
 
 def _show_person(store: Store, name: str) -> str:
@@ -139,11 +149,17 @@ def _add(store: Store, args: argparse.Namespace) -> str:
             f"confidant add {person.name} FILE"
         )
     for conversation in parsed:
-        stored, new = store.save_conversation(person, conversation)
-        if new:
+        result = store.save_conversation(person, conversation)
+        stored = result.conversation
+        if result.outcome is SaveOutcome.NEW:
             lines.append(
                 f"Saved {conversation.source} as #{stored.id} "
                 f"({_plural(stored.messages, 'message')})."
+            )
+        elif result.outcome is SaveOutcome.EXTENDED:
+            lines.append(
+                f"Added {_plural(result.added, 'new message')} from {conversation.source} "
+                f"to #{stored.id} ({stored.messages} in all)."
             )
         else:
             lines.append(f"{conversation.source} is already saved, as #{stored.id}.")
@@ -287,7 +303,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Save someone you are seeing, and optionally conversations with them.",
         description=(
             "Save someone you are seeing. Any transcripts given are saved under them; "
-            "run it again with more transcripts to add to someone already saved. "
+            "run it again with more transcripts to add to someone already saved. A newer "
+            "export of a chat already saved adds only the messages after the saved ones. "
             "Runs locally."
         ),
         epilog=_FORMAT,

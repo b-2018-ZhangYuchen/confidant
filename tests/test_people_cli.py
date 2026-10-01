@@ -231,3 +231,76 @@ def test_help_mentions_the_store(capsys):
     out = capsys.readouterr().out
     for expected in ("confidant add Robin", "CONFIDANT_DB", "list", "show", "remove"):
         assert expected in out
+
+
+# -- incremental add --------------------------------------------------------------
+
+
+def _export(tmp_path, name: str, lines: list[str]) -> Path:
+    path = tmp_path / name
+    path.write_text("# owner: Sam\n" + "\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def _messages(path: str) -> list[str]:
+    """A transcript's messages as written, each with its indented continuation lines."""
+    messages: list[str] = []
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        if line.startswith("["):
+            messages.append(line)
+        elif line[:1].isspace() and messages:
+            messages[-1] += "\n" + line
+    return messages
+
+
+SAMPLE_LINES = _messages("examples/sample_chat.txt")
+
+
+def test_a_newer_export_adds_only_the_new_messages(capsys, db, tmp_path):
+    early = _export(tmp_path, "early.txt", SAMPLE_LINES[:10])
+    run(capsys, "add", "Robin", str(early))
+    code, out, _ = run(capsys, "add", "Robin", "examples/sample_chat.txt")
+    assert code == 0
+    new = len(SAMPLE_LINES) - 10
+    assert out == f"Added {new} new messages from examples/sample_chat.txt to #1 (17 in all).\n"
+    with Store(db) as store:
+        assert [c.messages for c in store.conversations("Robin")] == [17]
+
+
+def test_an_older_export_after_a_newer_one_adds_nothing(capsys, db, tmp_path):
+    run(capsys, "add", "Robin", "examples/sample_chat.txt")
+    early = _export(tmp_path, "early.txt", SAMPLE_LINES[:10])
+    code, out, _ = run(capsys, "add", "Robin", str(early))
+    assert code == 0
+    assert out == f"{early} is already saved, as #1.\n"
+
+
+def test_one_new_message_is_singular(capsys, tmp_path):
+    run(capsys, "add", "Robin", str(_export(tmp_path, "a.txt", SAMPLE_LINES[:16])))
+    out = run(capsys, "add", "Robin", "examples/sample_chat.txt")[1]
+    assert "Added 1 new message from" in out
+
+
+def test_show_says_when_a_conversation_was_last_added_to(capsys, tmp_path):
+    run(capsys, "add", "Robin", str(_export(tmp_path, "a.txt", SAMPLE_LINES[:10])))
+    run(capsys, "add", "Robin", "examples/sample_chat.txt")
+    out = run(capsys, "show", "Robin")[1]
+    heading = out.split("\n\n")[1].splitlines()[0]
+    assert re.fullmatch(
+        r"#1  .*a\.txt, saved \d{4}-\d\d-\d\d \d\d:\d\d, updated \d{4}-\d\d-\d\d \d\d:\d\d",
+        heading,
+    )
+    assert "messages         17" in out
+
+
+def test_readme_incremental_example_matches_what_the_cli_prints(capsys, monkeypatch, tmp_path):
+    readme = README.read_text(encoding="utf-8")
+    marker = "to the same conversation rather than a second\ncopy of it:\n\n```\n"
+    documented = readme[readme.index(marker) + len(marker) :].split("\n```", 1)[0]
+
+    full = Path("examples/sample_chat.txt").read_text(encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    _export(tmp_path, "robin_week1.txt", SAMPLE_LINES[:10])
+    Path("robin_week2.txt").write_text(full, encoding="utf-8")
+    run(capsys, "add", "Robin", "robin_week1.txt")
+    assert run(capsys, "add", "Robin", "robin_week2.txt")[1] == documented + "\n"
