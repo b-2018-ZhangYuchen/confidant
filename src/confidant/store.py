@@ -19,6 +19,10 @@ line up with the end of a stored conversation is appended to it. Lining up is do
 digests alone, through the index, from the first matching message on; only the messages
 after the overlap are written; and a transcript already wholly stored writes nothing.
 
+The store also keeps every model read of a stored conversation, with how many messages
+the conversation had at the time, so a person's profile can say which reads are current
+and which predate the latest messages.
+
 Nothing here touches the network.
 """
 
@@ -40,6 +44,8 @@ __all__ = [
     "DuplicatePerson",
     "Person",
     "PersonSummary",
+    "Reading",
+    "ReadingKind",
     "SaveOutcome",
     "SaveResult",
     "Store",
@@ -102,6 +108,32 @@ class StoredConversation:
     last_message: datetime | None
     updated_at: datetime | None = None
     """When messages were last appended to it, or ``None`` if never."""
+
+
+class ReadingKind(StrEnum):
+    PERSONALITY = "personality"
+    FLAGS = "flags"
+
+
+@dataclass(frozen=True, slots=True)
+class Reading:
+    """One model read of a stored conversation, as the owner saw it.
+
+    ``report`` is the report's JSON after redaction was undone, so it holds real names
+    and quotes, exactly as private as the messages it was read from. The store keeps it
+    as text and leaves parsing to :mod:`confidant.profile`, so storing a report never
+    needs the analysis code or the SDK.
+    """
+
+    id: int
+    conversation_id: int
+    kind: ReadingKind
+    messages_read: int
+    """How many messages the conversation had when it was read."""
+
+    model: str | None
+    read_at: datetime
+    report: str
 
 
 class SaveOutcome(StrEnum):
@@ -168,6 +200,21 @@ _MIGRATIONS: tuple[str, ...] = (
     UPDATE messages SET digest = confidant_digest(role, sender, text, sent_at);
     CREATE INDEX messages_by_digest ON messages(digest);
     ALTER TABLE conversations ADD COLUMN updated_at TEXT;
+    """,
+    # Model reads of a conversation, kept so a person's profile can build on them without
+    # paying for them again. Every read is kept, not just the latest: a conversation read
+    # at 17 messages and again at 40 is a record of how it changed.
+    """
+    CREATE TABLE readings (
+        id               INTEGER PRIMARY KEY,
+        conversation_id  INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        kind             TEXT NOT NULL CHECK (kind IN ('personality', 'flags')),
+        messages_read    INTEGER NOT NULL,
+        model            TEXT,
+        read_at          TEXT NOT NULL,
+        report           TEXT NOT NULL
+    );
+    CREATE INDEX readings_by_conversation ON readings(conversation_id, kind);
     """,
 )
 
@@ -563,6 +610,58 @@ class Store:
         if cursor.rowcount == 0:
             raise StoreError(f"No conversation with id {conversation_id}")
 
+    # -- readings ------------------------------------------------------------
+
+    def save_reading(
+        self,
+        conversation_id: int,
+        kind: ReadingKind | str,
+        report: str,
+        *,
+        messages_read: int,
+        model: str | None = None,
+    ) -> Reading:
+        """Keep a model read of a stored conversation. ``report`` is its JSON."""
+        kind = ReadingKind(kind)
+        read_at = self._clock().replace(microsecond=0)
+        try:
+            with self._conn:
+                cursor = self._conn.execute(
+                    """
+                    INSERT INTO readings
+                        (conversation_id, kind, messages_read, model, read_at, report)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (conversation_id, kind.value, messages_read, model, _stamp(read_at), report),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise StoreError(f"No conversation with id {conversation_id}") from exc
+        return Reading(
+            id=cursor.lastrowid,
+            conversation_id=conversation_id,
+            kind=kind,
+            messages_read=messages_read,
+            model=model,
+            read_at=read_at,
+            report=report,
+        )
+
+    def readings(self, conversation_id: int) -> list[Reading]:
+        """Every read of a conversation, oldest first."""
+        rows = self._conn.execute(
+            "SELECT * FROM readings WHERE conversation_id = ? ORDER BY read_at, id",
+            (conversation_id,),
+        ).fetchall()
+        return [self._reading(row) for row in rows]
+
+    def latest_reading(self, conversation_id: int, kind: ReadingKind | str) -> Reading | None:
+        row = self._conn.execute(
+            "SELECT * FROM readings WHERE conversation_id = ? AND kind = ? "
+            "ORDER BY read_at DESC, id DESC LIMIT 1",
+            (conversation_id, ReadingKind(kind).value),
+        ).fetchone()
+        return self._reading(row) if row else None
+
     # -- row mapping ---------------------------------------------------------
 
     _CONVERSATION_SUMMARY = """
@@ -577,6 +676,18 @@ class Store:
     @staticmethod
     def _person(row: sqlite3.Row) -> Person:
         return Person(id=row["id"], name=row["name"], added_at=_unstamp(row["added_at"]))
+
+    @staticmethod
+    def _reading(row: sqlite3.Row) -> Reading:
+        return Reading(
+            id=row["id"],
+            conversation_id=row["conversation_id"],
+            kind=ReadingKind(row["kind"]),
+            messages_read=row["messages_read"],
+            model=row["model"],
+            read_at=_unstamp(row["read_at"]),
+            report=row["report"],
+        )
 
     @staticmethod
     def _stored(row: sqlite3.Row) -> StoredConversation:

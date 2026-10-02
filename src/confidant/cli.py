@@ -9,6 +9,7 @@ confidant add      Robin examples/sample_chat.txt  # local store, no API call
 confidant list
 confidant show     Robin
 confidant remove   Robin
+confidant profile  Robin                           # local; --update calls Claude
 """
 
 from __future__ import annotations
@@ -27,10 +28,12 @@ from confidant.client import IncompleteResponse, ModelRefusal
 from confidant.config import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ConfigError, Settings
 from confidant.ingest.transcript import TranscriptError, read_transcript
 from confidant.models import Conversation, Role
+from confidant.profile import build_profile, read_conversation
 from confidant.progress import StatusLine
 from confidant.prompts.common import render_conversation
 from confidant.redaction import redact
 from confidant.store import (
+    ReadingKind,
     SaveOutcome,
     Store,
     StoredConversation,
@@ -182,6 +185,81 @@ def _remove(store: Store, args: argparse.Namespace) -> str | None:
 
 _STORE_COMMANDS = ("add", "list", "show", "remove")
 
+# Everything a model call can fail with, mapped to an exit code by _model_failure.
+_MODEL_ERRORS = (
+    ConfigError,
+    ModelRefusal,
+    IncompleteResponse,
+    anthropic.APIError,
+    KeyboardInterrupt,
+    ValueError,
+)
+
+
+def _model_failure(exc: BaseException, settings: Settings | None) -> tuple[int, str]:
+    if isinstance(exc, ModelRefusal):
+        return 3, str(exc)
+    if isinstance(exc, IncompleteResponse):
+        return 4, str(exc)
+    if isinstance(exc, anthropic.APIError):
+        return 4, _api_error(exc, settings or Settings())
+    if isinstance(exc, KeyboardInterrupt):
+        return 130, "cancelled."
+    return 2, str(exc)
+
+
+def _status(args: argparse.Namespace, label: str = "confidant") -> StatusLine | None:
+    # Progress goes to stderr, and only to a terminal: piped into a file or another
+    # program, a line that rewrites itself is just noise.
+    return StatusLine(label=label) if args.progress and sys.stderr.isatty() else None
+
+
+def _run_profile(args: argparse.Namespace) -> int:
+    settings: Settings | None = None
+    done = 0
+    header = None
+    try:
+        with Store() as store:
+            profile = build_profile(store, args.name)
+            if args.update:
+                pending = profile.pending
+                if not pending:
+                    header = "Nothing to update: every conversation is read up to its last message."
+                else:
+                    settings = Settings.from_env()
+                    for stored, kind in pending:
+                        what = "read" if kind is ReadingKind.PERSONALITY else "red-flag check"
+                        status = _status(args, f"confidant #{stored.id} {what}")
+                        with status or contextlib.nullcontext():
+                            read_conversation(
+                                store, stored, kind, settings=settings, on_progress=status
+                            )
+                        done += 1
+                    header = f"Updated {_plural(done, 'read')}."
+                    profile = build_profile(store, profile.person)
+            out = profile.to_text()
+    except UnknownPerson as exc:
+        print(f"confidant: {exc}. 'confidant list' shows who is.", file=sys.stderr)
+        return 2
+    except StoreError as exc:
+        print(f"confidant: {exc}", file=sys.stderr)
+        return 2
+    except _MODEL_ERRORS as exc:
+        code, message = _model_failure(exc, settings)
+        print(f"confidant: {message}", file=sys.stderr)
+        if done:
+            # Each read is saved as it finishes, so a failure part-way loses only the one
+            # in flight. Worth saying, or the owner will assume they have to pay twice.
+            print(
+                f"confidant: kept the {_plural(done, 'read')} that finished before this.",
+                file=sys.stderr,
+            )
+        return code
+    if header is not None:
+        print(header + "\n")
+    print(out)
+    return 0
+
 
 def _run_store_command(args: argparse.Namespace) -> int:
     try:
@@ -218,13 +296,15 @@ examples:
   confidant flags examples/pressure_chat.txt --json
   confidant add Robin examples/sample_chat.txt
   confidant show Robin
+  confidant profile Robin --update
 
-stats and redact never touch the network, and neither do add, list, show, and
-remove, which keep people and their conversations in a local file. analyze and
-flags send the redacted transcript to the Anthropic API and nowhere else.
+stats and redact never touch the network, and neither do add, list, show,
+remove, and profile, which keep people and their conversations in a local file.
+analyze, flags, and profile --update send the redacted transcript to the
+Anthropic API and nowhere else.
 
 environment (or put these in .env):
-  ANTHROPIC_API_KEY     needed for analyze and flags
+  ANTHROPIC_API_KEY     needed for analyze, flags, and profile --update
   CONFIDANT_DB          the local store, default ~/.confidant/confidant.db
   CONFIDANT_MODEL       default {DEFAULT_MODEL}
   CONFIDANT_EFFORT      low, medium, high (default), xhigh, or max
@@ -342,6 +422,31 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     remove.add_argument("name")
     remove.add_argument("--yes", action="store_true", help="Do not ask for confirmation.")
+
+    profile = subcommands.add_parser(
+        "profile",
+        help="Show what every saved conversation with someone adds up to.",
+        description=(
+            "Show what every saved conversation with someone adds up to: statistics over "
+            "all of them, each conversation's latest read, and every red flag found, most "
+            "serious first. Runs locally unless --update is given."
+        ),
+    )
+    profile.add_argument("name")
+    profile.add_argument(
+        "--update",
+        action="store_true",
+        help=(
+            "First ask Claude to read any conversation not yet read, or with messages "
+            "added since it was. Sends those redacted conversations to the Anthropic API."
+        ),
+    )
+    profile.add_argument(
+        "--no-progress",
+        action="store_false",
+        dest="progress",
+        help="Do not show the progress line while Claude works.",
+    )
     return parser
 
 
@@ -373,6 +478,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in _STORE_COMMANDS:
         return _run_store_command(args)
+    if args.command == "profile":
+        return _run_profile(args)
 
     try:
         conversation = read_transcript(args.transcript, owner=args.owner, match=args.match)
@@ -389,32 +496,17 @@ def main(argv: list[str] | None = None) -> int:
         print(_preview(conversation))
         return 0
 
+    settings: Settings | None = None
     try:
         settings = Settings.from_env()
         analyze = analyze_flags if args.command == "flags" else analyze_personality
-        # Progress goes to stderr, and only to a terminal: piped into a file or another
-        # program, a line that rewrites itself is just noise.
-        status = StatusLine() if args.progress and sys.stderr.isatty() else None
+        status = _status(args)
         with status or contextlib.nullcontext():
             report = analyze(conversation, settings=settings, on_progress=status)
-    except ConfigError as exc:
-        print(f"confidant: {exc}", file=sys.stderr)
-        return 2
-    except ModelRefusal as exc:
-        print(f"confidant: {exc}", file=sys.stderr)
-        return 3
-    except IncompleteResponse as exc:
-        print(f"confidant: {exc}", file=sys.stderr)
-        return 4
-    except anthropic.APIError as exc:
-        print(f"confidant: {_api_error(exc, settings)}", file=sys.stderr)
-        return 4
-    except KeyboardInterrupt:
-        print("confidant: cancelled.", file=sys.stderr)
-        return 130
-    except ValueError as exc:
-        print(f"confidant: {exc}", file=sys.stderr)
-        return 2
+    except _MODEL_ERRORS as exc:
+        code, message = _model_failure(exc, settings)
+        print(f"confidant: {message}", file=sys.stderr)
+        return code
 
     print(report.model_dump_json(indent=2) if args.json else report.to_text())
     return 0

@@ -58,12 +58,12 @@ has a threat in it.
 ### 8. The data stays put
 
 `confidant stats`, `confidant redact`, and the commands that manage who the owner is
-seeing (`add`, `list`, `show`, `remove`) never make a network call. `confidant analyze` and `confidant flags`
-send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
+seeing (`add`, `list`, `show`, `remove`, `profile`) never make a network call. `confidant analyze`,
+`confidant flags`, and `confidant profile --update` send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
 third parties. What they send is redacted first: names, phone numbers, email and street
 addresses, links, and handles are replaced with placeholders on the owner's machine, and
 put back only in the report the owner reads. The model does not need to know who anyone
-is to read how they write. Conversations Confidant remembers are kept in a single SQLite file in the owner's home
+is to read how they write. Conversations Confidant remembers, and the reads it has made of them, are kept in a single SQLite file in the owner's home
 directory, private to their user account, and overwritten rather than merely unlinked
 when they ask for someone to be forgotten. The `.gitignore` blocks conversation data and `.env` before anyone can
 commit them by accident. The only conversations in this repository are fictional.

@@ -31,7 +31,7 @@ Early and honest about it. Working today:
 | ✅ | A live progress line while Claude works, so a long read is not a blank terminal |
 | ✅ | Remembering who you are seeing — `add`, `list`, `show`, and `remove`, in a private local file |
 | ✅ | Incremental saves — a newer export of a saved chat adds only the new messages |
-| 🔜 | A per-person profile that builds up across conversations |
+| ✅ | A per-person profile that builds up across conversations, with each read kept so it is paid for once |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -203,6 +203,69 @@ so with `--match`:
 confidant add Robin robin_export.txt --match "Robin 🌻"
 ```
 
+### A profile that builds up
+
+`confidant profile` puts together everything saved for one person: statistics over every
+conversation, the latest read of each one, and every red flag found in any of them, most
+serious first and tagged with the conversation it came from. On its own it is local, and
+shows only reads already saved. `--update` first asks Claude to read whatever has not
+been read yet — each conversation gets the same personality read and red-flag check as
+`analyze` and `flags`, redaction and grounding included — and keeps the results in the
+store, so the next `profile` costs nothing:
+
+```bash
+confidant profile Robin --update
+```
+
+prints
+
+```
+Updated 2 reads.
+
+Robin: 1 conversation, 17 messages
+
+ACROSS ALL CONVERSATIONS
+  messages         17 (8 you / 9 them)
+  avg words (you)  8.9
+  avg words (them) 14.3
+  effort ratio     1.62 (their words per word of yours)
+  first message    2026-03-02 19:04
+  last message     2026-03-05 21:36
+
+CONVERSATIONS
+  #1 examples/sample_chat.txt, 17 messages
+     Robin comes across as curious and playful, and keeps the conversation moving by picking up on what Sam says.
+     * remembers details and follows up  [high confidence]
+     * moves toward meeting, with a light touch  [medium confidence]
+     * asks what Sam needs instead of assuming  [medium confidence]
+     read 2026-10-02, medium confidence
+     checked 2026-10-02, 0 flags, medium confidence
+
+GREEN FLAGS
+  * Followed up on the presentation a day later.  [#1]
+  * Responded to two days of silence with no guilt and a question about Sam's week.  [#1]
+
+WORTH WATCHING
+  * Robin carries more of the conversation than Sam does. That is a question about Sam's energy as much as Robin's, and worth noticing if it continues.  [#1]
+
+WORTH ASKING
+  * Is the coffee cart still on? Suggesting a day would show whether the first-date joke was a real invitation.  [#1]
+  * What is Robin looking for right now? Nothing in the transcript answers it.  [#1]
+
+RED FLAGS
+  Nothing in 1 checked conversation rises to a red flag.
+```
+
+(That read is the hand-written recording the tests use, not a live call.) Reads stay
+side by side rather than being merged into one verdict: a summary of several
+conversations would be a claim no single quote supports, and laid out by conversation you
+can see for yourself what repeats. Each read remembers how many messages its
+conversation had, so when a newer export adds to a chat the profile says so — `read
+2026-10-02, at 17 of 24 messages` — and `--update` reads that conversation again. A
+danger flag from any conversation puts the safety notice at the top of the profile, even
+if that check is out of date: a threat does not stop having been made because the chat
+carried on.
+
 ### What gets sent
 
 Before `analyze` or `flags` builds a request, the transcript is redacted on your machine.
@@ -264,15 +327,16 @@ Your chat history is about as private as data gets, and this repo is built aroun
   `examples/sample_chat.txt`, `examples/pressure_chat.txt`, and
   `examples/details_chat.txt`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
-- `confidant add`, `list`, `show`, and `remove` never make a network call either. They
+- `confidant add`, `list`, `show`, `remove`, and `profile` never make a network call either. They
   keep people and conversations in one SQLite file at `~/.confidant/confidant.db`, or
   wherever `CONFIDANT_DB` points. It is in your home directory rather than wherever you
   ran the command, so it cannot end up inside a git checkout; it is readable only by you
   (`0600`, in a `0700` folder); and `confidant remove` overwrites a person's messages
   instead of leaving them recoverable in the file. It holds the conversations as you
-  wrote them — redaction happens on the way to the API, not on the way to disk.
-- `confidant analyze` and `confidant flags` send the redacted transcript to the Anthropic
-  API and nothing else — no telemetry, no analytics, no third parties. Names and contact
+  wrote them — redaction happens on the way to the API, not on the way to disk — and the
+  reads `profile --update` saves, with names put back, which `remove` overwrites too.
+- `confidant analyze`, `confidant flags`, and `confidant profile --update` send the
+  redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
 
 ## Settings and exit codes
@@ -282,11 +346,11 @@ from:
 
 | Variable | Default | |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Needed for `analyze` and `flags`; `stats` and `redact` never use it. |
+| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, and `profile --update`; nothing else uses it. |
 | `CONFIDANT_MODEL` | `claude-opus-5` | |
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
-| `CONFIDANT_DB` | `~/.confidant/confidant.db` | Where `add`, `list`, `show`, and `remove` keep people and conversations. |
+| `CONFIDANT_DB` | `~/.confidant/confidant.db` | Where `add`, `list`, `show`, `remove`, and `profile` keep people, conversations, and reads. |
 
 `confidant --help` lists the same, with examples, and every subcommand's `--help` shows
 the transcript format. Every failure is one sentence on stderr, never a traceback, and
