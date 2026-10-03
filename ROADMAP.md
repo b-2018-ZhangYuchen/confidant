@@ -22,7 +22,7 @@ need something else first, and that reordering is part of the record.
 - [x] **Wed Sep 30** — `confidant add` / `list` / `show` — manage who you are seeing
 - [x] **Thu Oct 01** — Incremental ingest: append new messages without re-reading everything
 - [x] **Fri Oct 02** — Per-person profile that accumulates across conversations
-- [ ] **Sat Oct 03** — Timeline view — how the dynamic changed over weeks
+- [x] **Sat Oct 03** — Timeline view — how the dynamic changed over weeks
 - [ ] **Sun Oct 04** — Prompt caching on the stable parts of the request
 - [ ] **Mon Oct 05** — Token and cost accounting per analysis
 

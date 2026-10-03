@@ -10,6 +10,7 @@ confidant list
 confidant show     Robin
 confidant remove   Robin
 confidant profile  Robin                           # local; --update calls Claude
+confidant timeline Robin                           # local
 """
 
 from __future__ import annotations
@@ -41,6 +42,7 @@ from confidant.store import (
     UnknownPerson,
     name_key,
 )
+from confidant.timeline import Period, build_timeline
 
 
 def _describe(conversation: Conversation) -> str:
@@ -183,7 +185,7 @@ def _remove(store: Store, args: argparse.Namespace) -> str | None:
     return f"Forgot {what}."
 
 
-_STORE_COMMANDS = ("add", "list", "show", "remove")
+_STORE_COMMANDS = ("add", "list", "show", "remove", "timeline")
 
 # Everything a model call can fail with, mapped to an exit code by _model_failure.
 _MODEL_ERRORS = (
@@ -270,6 +272,8 @@ def _run_store_command(args: argparse.Namespace) -> int:
                 out = _people_table(store)
             elif args.command == "show":
                 out = _show_person(store, args.name)
+            elif args.command == "timeline":
+                out = build_timeline(store, args.name, Period(args.by)).to_text()
             else:
                 out = _remove(store, args)
     except UnknownPerson as exc:
@@ -297,9 +301,11 @@ examples:
   confidant add Robin examples/sample_chat.txt
   confidant show Robin
   confidant profile Robin --update
+  confidant timeline Robin
 
 stats and redact never touch the network, and neither do add, list, show,
-remove, and profile, which keep people and their conversations in a local file.
+remove, profile, and timeline, which keep people and their conversations in a
+local file.
 analyze, flags, and profile --update send the redacted transcript to the
 Anthropic API and nowhere else.
 
@@ -446,6 +452,24 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_false",
         dest="progress",
         help="Do not show the progress line while Claude works.",
+    )
+
+    timeline = subcommands.add_parser(
+        "timeline",
+        help="Show how the back-and-forth with someone changed over time. Runs locally.",
+        description=(
+            "Show how the back-and-forth with someone changed over time: for each week, "
+            "how much each of you wrote, who started things up after a quiet stretch, how "
+            "long each of you usually took to reply, and where each saved read was made. "
+            "Only timestamped messages can be placed. Runs locally."
+        ),
+    )
+    timeline.add_argument("name")
+    timeline.add_argument(
+        "--by",
+        choices=[p.value for p in Period],
+        default=Period.WEEK.value,
+        help="How to group messages (default: week).",
     )
     return parser
 

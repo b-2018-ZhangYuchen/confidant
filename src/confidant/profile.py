@@ -46,6 +46,7 @@ __all__ = [
     "Profile",
     "TaggedFlag",
     "build_profile",
+    "parse_reading",
     "read_conversation",
 ]
 
@@ -282,15 +283,20 @@ def _entry_lines(entry: ConversationEntry, name: str) -> list[str]:
     return out
 
 
-def _current(store: Store, stored: StoredConversation, kind: ReadingKind) -> CurrentRead | None:
-    reading = store.latest_reading(stored.id, kind)
-    if reading is None:
-        return None
+def parse_reading(reading: Reading) -> PersonalityReport | FlagReport | None:
+    """The report a stored read holds, or ``None`` if it is not one this version reads."""
     try:
-        report = _SCHEMAS[kind].model_validate_json(reading.report)
+        return _SCHEMAS[reading.kind].model_validate_json(reading.report)
     except ValidationError:
         # Written by a Confidant whose report had a different shape. Treated as missing,
         # so --update reads it again, rather than as an error that hides the whole profile.
+        return None
+
+
+def _current(store: Store, stored: StoredConversation, kind: ReadingKind) -> CurrentRead | None:
+    reading = store.latest_reading(stored.id, kind)
+    report = parse_reading(reading) if reading is not None else None
+    if report is None:
         return None
     return CurrentRead(reading=reading, report=report, messages_now=stored.messages)
 

@@ -1,0 +1,22 @@
+# Entirely fictional. A later export of the chat in sample_chat.txt: it opens with the
+# last two messages saved from that one, so `confidant add` appends the rest.
+# owner: Sam
+# match: Robin
+
+[2026-03-05 21:35] Sam: distracted please
+[2026-03-05 21:36] Robin: excellent. I have a strongly held opinion about airport carpet that I have been saving
+[2026-03-05 21:41] Sam: go on
+[2026-03-05 21:44] Robin: it is designed to keep you awake. the patterns are a crime. I will not be taking questions
+[2026-03-09 18:02] Robin: coffee cart, saturday morning? I checked, it opens at 8
+[2026-03-09 18:30] Sam: yes. 10?
+[2026-03-09 18:31] Robin: 10. I'll be the one with the bike
+[2026-03-14 13:05] Sam: that was really nice. you were right about the cart
+[2026-03-14 13:40] Robin: I usually am. same time next week? I fly out monday but I'm back friday
+[2026-03-16 07:15] Sam: safe flight! where to?
+[2026-03-16 22:48] Robin: lisbon, for work. conference all week and I'm wiped already
+[2026-03-17 09:02] Sam: lisbon! eat a pastel de nata for me
+[2026-03-18 23:10] Robin: ate two. sorry I'm slow, the days here are long
+[2026-03-19 07:30] Sam: no stress, enjoy it
+[2026-03-21 11:20] Robin: back! jet lagged and very in need of that coffee cart. tomorrow?
+[2026-03-21 11:24] Sam: tomorrow
+[2026-03-21 11:25] Robin: 10, same bench

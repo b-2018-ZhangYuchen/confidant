@@ -32,6 +32,7 @@ Early and honest about it. Working today:
 | ✅ | Remembering who you are seeing — `add`, `list`, `show`, and `remove`, in a private local file |
 | ✅ | Incremental saves — a newer export of a saved chat adds only the new messages |
 | ✅ | A per-person profile that builds up across conversations, with each read kept so it is paid for once |
+| ✅ | A timeline of how the back-and-forth changed, week by week, with each saved read placed where it was made |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -266,6 +267,52 @@ danger flag from any conversation puts the safety notice at the top of the profi
 if that check is out of date: a threat does not stop having been made because the chat
 carried on.
 
+### How it changed over time
+
+A profile adds everything up, and a total has no "used to". `confidant timeline` splits
+every timestamped message into weeks (or days, with `--by day`) and shows, for each of
+you, how much you wrote, how often you started things up — wrote first after eight hours
+or more of quiet — and how long you usually took to reply, as a median so one slow
+answer does not stand for a whole week. Every saved read is placed at the last message
+it read, so you can see what it was based on and how reads of the same chat changed. It
+is local, like `profile` without `--update`. After saving `examples/sample_chat.txt`,
+reading it with `profile --update`, and then adding the fictional later export
+`examples/sample_chat_later.txt`:
+
+```bash
+confidant timeline Robin
+```
+
+prints
+
+```
+Robin: 32 messages over 3 weeks
+
+            MESSAGES    AVG WORDS    STARTED   MEDIAN REPLY
+WEEK OF      you them    you  them   you them    you  them
+2026-03-02     9   10    8.1  14.7     2    1    23m    2m
+            ~ #1 read at 17 messages: Robin comes across as curious and playful, and keeps the conversation moving by picking up on what Sam says. (medium confidence)
+            ~ #1 checked at 17 messages: no red flags
+2026-03-09     2    3    6.0  11.0     1    1     2d   18m
+2026-03-16     4    4    4.2   8.8     3    3     9h   27h
+
+FIRST WEEK TO LATEST
+  messages (you / them)   9 / 10  ->  4 / 4
+  started by them         1 of 3  ->  3 of 6
+  their median reply          2m  ->  27h
+  your median reply          23m  ->  9h
+
+These count what changed, not why. A busy week, a trip, or moving to calls or
+another app look the same from here, and one week is a small sample.
+```
+
+Robin's replies going from two minutes to a day is the kind of number that invites a
+story. In this chat the story is in the messages — Robin was at a conference in Lisbon
+that week — and the last line is printed every time because usually it is not. Replies
+and starts are worked out within each conversation, never across two, and a message
+without a timestamp cannot be placed, so the timeline says how many it left out. A
+danger flag in any conversation puts the safety notice at the top here too.
+
 ### What gets sent
 
 Before `analyze` or `flags` builds a request, the transcript is redacted on your machine.
@@ -324,10 +371,10 @@ Your chat history is about as private as data gets, and this repo is built aroun
 
 - `.gitignore` blocks `data/`, `transcripts/`, `conversations/`, `*.db`, and `.env`
   before you can make a mistake with them. The only conversations in this repository are
-  `examples/sample_chat.txt`, `examples/pressure_chat.txt`, and
-  `examples/details_chat.txt`, all fictional.
+  `examples/sample_chat.txt`, `examples/sample_chat_later.txt`,
+  `examples/pressure_chat.txt`, and `examples/details_chat.txt`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
-- `confidant add`, `list`, `show`, `remove`, and `profile` never make a network call either. They
+- `confidant add`, `list`, `show`, `remove`, `profile`, and `timeline` never make a network call either. They
   keep people and conversations in one SQLite file at `~/.confidant/confidant.db`, or
   wherever `CONFIDANT_DB` points. It is in your home directory rather than wherever you
   ran the command, so it cannot end up inside a git checkout; it is readable only by you
@@ -350,7 +397,7 @@ from:
 | `CONFIDANT_MODEL` | `claude-opus-5` | |
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
-| `CONFIDANT_DB` | `~/.confidant/confidant.db` | Where `add`, `list`, `show`, `remove`, and `profile` keep people, conversations, and reads. |
+| `CONFIDANT_DB` | `~/.confidant/confidant.db` | Where `add`, `list`, `show`, `remove`, `profile`, and `timeline` keep people, conversations, and reads. |
 
 `confidant --help` lists the same, with examples, and every subcommand's `--help` shows
 the transcript format. Every failure is one sentence on stderr, never a traceback, and
