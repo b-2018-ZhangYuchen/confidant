@@ -23,7 +23,7 @@ need something else first, and that reordering is part of the record.
 - [x] **Thu Oct 01** — Incremental ingest: append new messages without re-reading everything
 - [x] **Fri Oct 02** — Per-person profile that accumulates across conversations
 - [x] **Sat Oct 03** — Timeline view — how the dynamic changed over weeks
-- [ ] **Sun Oct 04** — Prompt caching on the stable parts of the request
+- [x] **Sun Oct 04** — Prompt caching on the stable parts of the request
 - [ ] **Mon Oct 05** — Token and cost accounting per analysis
 
 ## Week 3 — Knowing when to reach out

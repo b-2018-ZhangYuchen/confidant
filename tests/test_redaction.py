@@ -209,7 +209,7 @@ def test_no_name_reaches_the_request(replay_client, analysis, recording_name, tr
     client = replay_client(recording_name)
     run_analysis(analysis, transcript, client=client)
     [request] = client.requests
-    sent = request["system"] + json.dumps(request["messages"])
+    sent = json.dumps(request["system"]) + json.dumps(request["messages"])
     for name in names:
         assert name not in sent
     assert "[MATCH]" in sent

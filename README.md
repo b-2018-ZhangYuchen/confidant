@@ -33,6 +33,7 @@ Early and honest about it. Working today:
 | ✅ | Incremental saves — a newer export of a saved chat adds only the new messages |
 | ✅ | A per-person profile that builds up across conversations, with each read kept so it is paid for once |
 | ✅ | A timeline of how the back-and-forth changed, week by week, with each saved read placed where it was made |
+| ✅ | Prompt caching on Confidant's own instructions, so a run of reads pays for them once |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -385,6 +386,9 @@ Your chat history is about as private as data gets, and this repo is built aroun
 - `confidant analyze`, `confidant flags`, and `confidant profile --update` send the
   redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
+  Confidant's own instructions are marked for prompt caching, so a `profile --update`
+  that reads several conversations pays full price for them once; the transcript is
+  never marked, so nothing of yours is held for reuse.
 
 ## Settings and exit codes
 

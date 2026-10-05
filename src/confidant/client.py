@@ -1,9 +1,24 @@
 """Thin wrapper over the Anthropic SDK.
 
-Every model call in Confidant goes through :func:`structured_call`, which keeps four
-things consistent across the codebase: adaptive thinking is on, the response is streamed,
-it is validated against a Pydantic schema, and a refusal is surfaced as an exception
-instead of quietly becoming an empty report.
+Every model call in Confidant goes through :func:`structured_call`, which keeps five
+things consistent across the codebase: adaptive thinking is on, the system prompt is
+cached, the response is streamed, it is validated against a Pydantic schema, and a
+refusal is surfaced as an exception instead of quietly becoming an empty report.
+
+What gets cached, and what does not
+-----------------------------------
+
+A cache hit needs a byte-identical prefix, and the API renders the system prompt ahead
+of the messages. Only the system prompt is stable: every analysis of a given kind sends
+the same one, along with the same output schema, whoever the conversation is about. So
+``profile --update`` reading several conversations in a row pays full price for that
+prefix once and a tenth of it after.
+
+The transcript is deliberately left uncached. It is the biggest part of the request, but
+it is not a stable one: the personality read and the red-flag check put it after
+different system prompts, so neither can reuse the other's entry, and the header above it
+counts messages, so an appended message changes it from the first line. A breakpoint
+there would pay the cache-write premium on nearly every call and almost never be read.
 """
 
 from __future__ import annotations
@@ -11,7 +26,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import anthropic
 from pydantic import BaseModel, ValidationError
@@ -21,7 +36,18 @@ from confidant.progress import Progress, ProgressTracker
 
 T = TypeVar("T", bound=BaseModel)
 
-__all__ = ["IncompleteResponse", "ModelRefusal", "build_client", "structured_call"]
+__all__ = [
+    "IncompleteResponse",
+    "ModelRefusal",
+    "build_client",
+    "cached_system",
+    "structured_call",
+]
+
+# The default five-minute lifetime, renewed on every hit. The one-hour option costs twice
+# as much to write, and the calls that share a prefix (one `profile --update`, or an
+# `analyze` and a `flags` run back to back) land minutes apart, not hours.
+_CACHE_CONTROL = {"type": "ephemeral"}
 
 
 class ModelRefusal(RuntimeError):
@@ -93,6 +119,15 @@ def build_client(settings: Settings | None = None) -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.api_key)
 
 
+def cached_system(system: str) -> list[dict[str, Any]]:
+    """``system`` as a single text block with a cache breakpoint on it.
+
+    The prompt modules hold plain strings so they read as prose; this is the one place
+    that knows the API wants a list of blocks to carry ``cache_control``.
+    """
+    return [{"type": "text", "text": system, "cache_control": dict(_CACHE_CONTROL)}]
+
+
 def structured_call(
     *,
     schema: type[T],
@@ -122,7 +157,7 @@ def structured_call(
         with client.messages.stream(
             model=settings.model,
             max_tokens=settings.max_tokens,
-            system=system,
+            system=cached_system(system),
             thinking={"type": "adaptive"},
             output_config={"effort": settings.effort},
             messages=[{"role": "user", "content": user_content}],

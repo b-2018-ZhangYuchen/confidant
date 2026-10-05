@@ -75,6 +75,18 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _system_text(system: str | list[dict[str, Any]]) -> str:
+    """The text of a system prompt, however the request packaged it.
+
+    ``structured_call`` sends the prompt as a block carrying a cache breakpoint. That
+    changes what the request costs, not what the model is told, so it should not make a
+    recording stale: the hash covers the words and nothing else.
+    """
+    if isinstance(system, str):
+        return system
+    return "".join(block["text"] for block in system)
+
+
 @dataclass(frozen=True, slots=True)
 class Fingerprint:
     """What identifies a request, without storing any of its text."""
@@ -89,7 +101,7 @@ class Fingerprint:
         schema = request["output_format"]
         return cls(
             schema=schema.__name__,
-            system_sha256=_sha256(request["system"]),
+            system_sha256=_sha256(_system_text(request["system"])),
             # sort_keys so that a dict built in a different order is the same request.
             messages_sha256=_sha256(json.dumps(request["messages"], sort_keys=True)),
         )
