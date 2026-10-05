@@ -20,6 +20,10 @@ Two kinds of recording live in ``tests/fixtures/recorded``:
   ``python -m confidant.recording stamp`` after someone has read the response and agrees
   it still fits the new prompt.
 
+A recording may also hold the response's token usage. It is not part of the fingerprint:
+it says what the call cost, not what the model was asked, and a hand-written recording's
+usage is an illustration of a plausible call rather than a measurement.
+
 The request is stored only as hashes. The response still quotes the transcript, which is
 why ``record`` only accepts transcripts from ``examples/``: a recording is committed to
 the repository, and nothing real belongs there.
@@ -132,6 +136,9 @@ class Recording:
     """How to make this recording again: ``{"analysis": ..., "transcript": ...}``."""
 
     note: str | None = None
+    usage: dict[str, int] | None = None
+    """The response's ``usage``, in the API's field names, if it was kept."""
+
     path: Path | None = None
 
     # -- files ---------------------------------------------------------------
@@ -165,6 +172,7 @@ class Recording:
                 model=request.get("model"),
                 source=data.get("source", {}),
                 note=data.get("note"),
+                usage=response.get("usage"),
                 path=path,
             )
         except KeyError as exc:
@@ -187,6 +195,8 @@ class Recording:
             "stop_details": self.stop_details,
             "output": self.output,
         }
+        if self.usage is not None:
+            data["response"]["usage"] = self.usage
         # ensure_ascii off so a quote with a curly apostrophe reads as the model wrote it.
         return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
@@ -208,11 +218,13 @@ class Recording:
         """
         parsed = schema.model_validate(self.output) if self.output is not None else None
         details = SimpleNamespace(**self.stop_details) if self.stop_details else None
+        usage = SimpleNamespace(**self.usage) if self.usage is not None else None
         return SimpleNamespace(
             stop_reason=self.stop_reason,
             stop_details=details,
             parsed_output=parsed,
             model=self.model,
+            usage=usage,
         )
 
     def events(self, chunk_size: int = 48) -> Iterator[SimpleNamespace]:
@@ -346,6 +358,7 @@ class RecordingClient:
             model=getattr(response, "model", None) or request.get("model"),
             source=self._source,
             note=self._note,
+            usage=_usage_dict(getattr(response, "usage", None)),
         )
         # A second call in one run gets its own numbered file rather than overwriting the
         # first; today every analysis makes exactly one.
@@ -390,6 +403,22 @@ def _as_dict(details: Any) -> dict[str, Any] | None:
     if isinstance(details, dict):
         return details
     return {k: v for k, v in vars(details).items() if v is not None}
+
+
+_USAGE_FIELDS = (
+    "input_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+    "output_tokens",
+)
+
+
+def _usage_dict(usage: Any) -> dict[str, int] | None:
+    # Only the counts confidant.usage prices; the SDK object carries more (service tier,
+    # server-tool counts) that would make a recording noisier without being read.
+    if usage is None:
+        return None
+    return {name: int(getattr(usage, name, None) or 0) for name in _USAGE_FIELDS}
 
 
 # -- replaying an analysis ----------------------------------------------------

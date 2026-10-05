@@ -1,9 +1,10 @@
 """Thin wrapper over the Anthropic SDK.
 
-Every model call in Confidant goes through :func:`structured_call`, which keeps five
+Every model call in Confidant goes through :func:`structured_call`, which keeps six
 things consistent across the codebase: adaptive thinking is on, the system prompt is
-cached, the response is streamed, it is validated against a Pydantic schema, and a
-refusal is surfaced as an exception instead of quietly becoming an empty report.
+cached, the response is streamed, it is validated against a Pydantic schema, what it
+used is reported (see :mod:`confidant.usage`), and a refusal is surfaced as an exception
+instead of quietly becoming an empty report.
 
 What gets cached, and what does not
 -----------------------------------
@@ -33,6 +34,7 @@ from pydantic import BaseModel, ValidationError
 
 from confidant.config import ConfigError, Settings
 from confidant.progress import Progress, ProgressTracker
+from confidant.usage import Usage
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -136,6 +138,7 @@ def structured_call(
     settings: Settings | None = None,
     client: anthropic.Anthropic | None = None,
     on_progress: Callable[[Progress], None] | None = None,
+    on_usage: Callable[[Usage], None] | None = None,
 ) -> T:
     """Ask the model one question and get back a validated ``schema`` instance.
 
@@ -146,6 +149,10 @@ def structured_call(
     ``on_progress`` is told when the model starts thinking, starts writing, and moves on
     to each part of the report. It never sees the report itself; see
     :mod:`confidant.progress` for why.
+
+    ``on_usage`` is handed the call's token usage as soon as the response is whole, before
+    it is checked: a refusal or a cut-off answer is billed too. An answer whose stream
+    breaks off mid-JSON never produces a final message, so its usage cannot be reported.
     """
     settings = settings or Settings.from_env()
     client = client or build_client(settings)
@@ -174,6 +181,12 @@ def structured_call(
         if all(error["type"] == "json_invalid" for error in exc.errors()):
             raise IncompleteResponse(None, settings.max_tokens) from exc
         raise
+
+    usage = getattr(response, "usage", None)
+    if on_usage is not None and usage is not None:
+        # The model that answered, which is what is billed, rather than the one asked for.
+        model = getattr(response, "model", None) or settings.model
+        on_usage(Usage.from_response(usage, model))
 
     if response.stop_reason == "refusal":
         details = getattr(response, "stop_details", None)

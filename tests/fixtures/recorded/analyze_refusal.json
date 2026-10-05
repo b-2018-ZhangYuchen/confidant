@@ -18,6 +18,12 @@
       "category": "general_harms",
       "explanation": "Declined to profile a third party from a private conversation."
     },
-    "output": null
+    "output": null,
+    "usage": {
+      "input_tokens": 498,
+      "cache_creation_input_tokens": 671,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 37
+    }
   }
 }

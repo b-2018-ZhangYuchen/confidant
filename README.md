@@ -34,6 +34,7 @@ Early and honest about it. Working today:
 | ✅ | A per-person profile that builds up across conversations, with each read kept so it is paid for once |
 | ✅ | A timeline of how the back-and-forth changed, week by week, with each saved read placed where it was made |
 | ✅ | Prompt caching on Confidant's own instructions, so a run of reads pays for them once |
+| ✅ | Token and cost accounting — every command that calls Claude says what it used and roughly what it cost |
 | 🔜 | Keep-in-touch suggestions |
 | 🔜 | Comfort mode for when it goes badly |
 
@@ -111,6 +112,23 @@ report is printed only once it is whole, because a flag is not shown to you unti
 quotes have been checked against the transcript, and a half-streamed report has not been
 checked yet. The line appears only when stderr is a terminal, so piping `--json` into
 another program gets clean output; `--no-progress` turns it off anyway.
+
+Once the report is printed, one more line on stderr says what the call used:
+
+```
+confidant: used 1,169 input tokens (671 written to the cache) and 1,964 output tokens, about $0.056.
+```
+
+Input is counted three ways because it is billed three ways: tokens sent fresh, tokens
+written to the prompt cache (a little above the input rate), and tokens read back from it
+(a tenth of it). The first read of a kind writes Confidant's instructions to the cache, and
+another within five minutes reads them back. Output includes Claude's thinking, which is
+billed whether or not it is shown. The cost is an estimate from list prices kept in
+[`src/confidant/usage.py`](src/confidant/usage.py); a model not in that table gets its
+tokens counted and no dollar figure, rather than a guess. A refused or cut-off answer is
+still billed, so the line is printed after those errors too. `profile --update` prints one
+line covering every read it made. (The numbers above come from the hand-written recording
+the tests use, not a live call.)
 
 `analyze` gives you the considered read — traits with quoted evidence, green flags,
 things worth watching, questions worth asking, and a stated confidence level.
@@ -439,6 +457,10 @@ python -m confidant.recording record flags examples/pressure_chat.txt \
 # Re-fingerprint a hand-written recording, after reading it against the new prompt.
 python -m confidant.recording stamp tests/fixtures/recorded/flags_pressure.json
 ```
+
+A recording also keeps the response's token counts, so the usage line runs for real in a
+replay too. They are not part of the fingerprint: they say what a call cost, not what it
+asked.
 
 The recordings in the repository today are hand-written — marked `"provenance":
 "hand-written"` in the file — because they were made without an API key. They pin down

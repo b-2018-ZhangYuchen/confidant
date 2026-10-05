@@ -208,6 +208,13 @@ def cli(monkeypatch, replay_client):
     return use
 
 
+def _without_usage(err: str) -> str:
+    """stderr minus the usage line every model command ends with, which is not progress."""
+    progress, usage = err.rsplit("confidant: used ", 1)
+    assert usage.endswith(".\n") and "\n" not in usage[:-1]
+    return progress
+
+
 def test_a_terminal_sees_progress_on_stderr_and_a_clean_report_on_stdout(cli, capsys, monkeypatch):
     cli("analyze_sample")
     monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
@@ -215,21 +222,22 @@ def test_a_terminal_sees_progress_on_stderr_and_a_clean_report_on_stdout(cli, ca
     captured = capsys.readouterr()
     assert "confidant: thinking it over..." in captured.err
     assert "confidant: writing the report: traits..." in captured.err
-    assert captured.err.endswith("\r")
+    # The status line clears itself before the usage line is printed below it.
+    assert _without_usage(captured.err).endswith("\r")
     assert "confidant:" not in captured.out
 
 
 def test_no_progress_when_stderr_is_not_a_terminal(cli, capsys):
     cli("flags_pressure")
     assert main(["flags", "examples/pressure_chat.txt"]) == 0
-    assert capsys.readouterr().err == ""
+    assert _without_usage(capsys.readouterr().err) == ""
 
 
 def test_no_progress_flag_silences_a_terminal(cli, capsys, monkeypatch):
     cli("analyze_sample")
     monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
     assert main(["analyze", "examples/sample_chat.txt", "--no-progress", "--json"]) == 0
-    assert capsys.readouterr().err == ""
+    assert _without_usage(capsys.readouterr().err) == ""
 
 
 def test_placeholders_never_reach_the_status_line(cli, capsys, monkeypatch):

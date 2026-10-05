@@ -176,7 +176,13 @@ def test_update_reads_each_conversation_once(capsys, answer_with, isolated):
     client = answer_with("analyze_sample", "flags_sample")
 
     code, out, err = run(capsys, "profile", "Robin", "--update")
-    assert (code, err) == (0, "")
+    assert code == 0
+    # Both reads are first calls with their system prompts, so each writes its own cache
+    # entry; the recordings' usage is hand-written, the arithmetic on it is not.
+    assert err == (
+        "confidant: 2 calls used 2,730 input tokens (1,723 written to the cache) and "
+        "2,770 output tokens, about $0.085.\n"
+    )
     assert client.remaining == 0
     assert out.startswith("Updated 2 reads.\n\nRobin: 1 conversation, 17 messages\n")
     # Placeholders are swapped back before a read is saved, so the store holds what the

@@ -24,7 +24,7 @@ need something else first, and that reordering is part of the record.
 - [x] **Fri Oct 02** — Per-person profile that accumulates across conversations
 - [x] **Sat Oct 03** — Timeline view — how the dynamic changed over weeks
 - [x] **Sun Oct 04** — Prompt caching on the stable parts of the request
-- [ ] **Mon Oct 05** — Token and cost accounting per analysis
+- [x] **Mon Oct 05** — Token and cost accounting per analysis
 
 ## Week 3 — Knowing when to reach out
 

@@ -43,6 +43,7 @@ from confidant.store import (
     name_key,
 )
 from confidant.timeline import Period, build_timeline
+from confidant.usage import UsageMeter
 
 
 def _describe(conversation: Conversation) -> str:
@@ -216,8 +217,16 @@ def _status(args: argparse.Namespace, label: str = "confidant") -> StatusLine | 
     return StatusLine(label=label) if args.progress and sys.stderr.isatty() else None
 
 
+def _report_usage(meter: UsageMeter) -> None:
+    # On stderr, so `--json` output stays a single JSON document. Printed after a failure
+    # too: a refused or cut-off answer is still billed.
+    if meter:
+        print(f"confidant: {meter.describe()}", file=sys.stderr)
+
+
 def _run_profile(args: argparse.Namespace) -> int:
     settings: Settings | None = None
+    meter = UsageMeter()
     done = 0
     header = None
     try:
@@ -234,7 +243,12 @@ def _run_profile(args: argparse.Namespace) -> int:
                         status = _status(args, f"confidant #{stored.id} {what}")
                         with status or contextlib.nullcontext():
                             read_conversation(
-                                store, stored, kind, settings=settings, on_progress=status
+                                store,
+                                stored,
+                                kind,
+                                settings=settings,
+                                on_progress=status,
+                                on_usage=meter,
                             )
                         done += 1
                     header = f"Updated {_plural(done, 'read')}."
@@ -256,10 +270,12 @@ def _run_profile(args: argparse.Namespace) -> int:
                 f"confidant: kept the {_plural(done, 'read')} that finished before this.",
                 file=sys.stderr,
             )
+        _report_usage(meter)
         return code
     if header is not None:
         print(header + "\n")
     print(out)
+    _report_usage(meter)
     return 0
 
 
@@ -307,7 +323,8 @@ stats and redact never touch the network, and neither do add, list, show,
 remove, profile, and timeline, which keep people and their conversations in a
 local file.
 analyze, flags, and profile --update send the redacted transcript to the
-Anthropic API and nowhere else.
+Anthropic API and nowhere else, and end with a line on stderr saying how many
+tokens they used and roughly what that cost.
 
 environment (or put these in .env):
   ANTHROPIC_API_KEY     needed for analyze, flags, and profile --update
@@ -521,18 +538,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     settings: Settings | None = None
+    meter = UsageMeter()
     try:
         settings = Settings.from_env()
         analyze = analyze_flags if args.command == "flags" else analyze_personality
         status = _status(args)
         with status or contextlib.nullcontext():
-            report = analyze(conversation, settings=settings, on_progress=status)
+            report = analyze(conversation, settings=settings, on_progress=status, on_usage=meter)
     except _MODEL_ERRORS as exc:
         code, message = _model_failure(exc, settings)
         print(f"confidant: {message}", file=sys.stderr)
+        _report_usage(meter)
         return code
 
     print(report.model_dump_json(indent=2) if args.json else report.to_text())
+    _report_usage(meter)
     return 0
 
 

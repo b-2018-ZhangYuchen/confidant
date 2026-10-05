@@ -20,6 +20,7 @@ from confidant.models import Conversation
 from confidant.progress import Progress
 from confidant.prompts.personality import PERSONALITY_SYSTEM, build_personality_request
 from confidant.redaction import redact
+from confidant.usage import Usage
 
 __all__ = ["Confidence", "Evidence", "PersonalityReport", "Trait", "analyze_personality"]
 
@@ -106,6 +107,7 @@ def analyze_personality(
     settings: Settings | None = None,
     client: anthropic.Anthropic | None = None,
     on_progress: Callable[[Progress], None] | None = None,
+    on_usage: Callable[[Usage], None] | None = None,
 ) -> PersonalityReport:
     """Produce a :class:`PersonalityReport` for the match in ``conversation``."""
     if not conversation.match_messages:
@@ -121,5 +123,6 @@ def analyze_personality(
         settings=settings,
         client=client,
         on_progress=on_progress,
+        on_usage=on_usage,
     )
     return redaction.restore(report)

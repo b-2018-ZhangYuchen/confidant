@@ -39,6 +39,7 @@ from confidant.models import Conversation, Role
 from confidant.progress import Progress
 from confidant.safety import Escalation, escalate
 from confidant.store import Person, Reading, ReadingKind, Store, StoredConversation
+from confidant.usage import Usage
 
 __all__ = [
     "ConversationEntry",
@@ -335,6 +336,7 @@ def read_conversation(
     settings: Settings,
     client: anthropic.Anthropic | None = None,
     on_progress: Callable[[Progress], None] | None = None,
+    on_usage: Callable[[Usage], None] | None = None,
 ) -> Reading:
     """Run one analysis over a stored conversation and keep the result.
 
@@ -343,7 +345,13 @@ def read_conversation(
     """
     conversation = store.load_conversation(stored.id)
     analyze = analyze_personality if kind is ReadingKind.PERSONALITY else analyze_flags
-    report = analyze(conversation, settings=settings, client=client, on_progress=on_progress)
+    report = analyze(
+        conversation,
+        settings=settings,
+        client=client,
+        on_progress=on_progress,
+        on_usage=on_usage,
+    )
     return store.save_reading(
         stored.id,
         kind,

@@ -40,6 +40,7 @@ from confidant.progress import Progress
 from confidant.prompts.flags import FLAGS_SYSTEM, build_flags_request
 from confidant.redaction import redact
 from confidant.safety import Escalation, escalate
+from confidant.usage import Usage
 
 __all__ = [
     "DANGER_CATEGORIES",
@@ -287,6 +288,7 @@ def analyze_flags(
     settings: Settings | None = None,
     client: anthropic.Anthropic | None = None,
     on_progress: Callable[[Progress], None] | None = None,
+    on_usage: Callable[[Usage], None] | None = None,
 ) -> FlagReport:
     """Check the match in ``conversation`` for red flags, grounded against the transcript."""
     if not conversation.match_messages:
@@ -302,5 +304,6 @@ def analyze_flags(
         settings=settings,
         client=client,
         on_progress=on_progress,
+        on_usage=on_usage,
     )
     return redaction.restore(ground_flags(scan, redaction.conversation))

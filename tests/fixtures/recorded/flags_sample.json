@@ -19,6 +19,12 @@
       "flags": [],
       "summary": "Nothing in [MATCH]'s messages rises to a red flag. When [OWNER] went quiet for two days, [MATCH] did not press or assign blame.",
       "confidence": "medium"
+    },
+    "usage": {
+      "input_tokens": 509,
+      "cache_creation_input_tokens": 1052,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 806
     }
   }
 }
