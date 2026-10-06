@@ -283,4 +283,4 @@ def test_help_names_timeline_as_local(capsys):
         main(["--help"])
     out = capsys.readouterr().out
     assert "confidant timeline Robin" in out
-    assert "remove, profile, and timeline, which keep" in out
+    assert "remove, profile, timeline, and nudge, which keep" in out

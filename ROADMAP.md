@@ -29,7 +29,7 @@ need something else first, and that reordering is part of the record.
 ## Week 3 — Knowing when to reach out
 
 - [x] **Tue Oct 06** — Keep-in-touch model: decay over last contact, weighted by reciprocity
-- [ ] **Wed Oct 07** — `confidant nudge` — who is worth a message today, and why
+- [x] **Wed Oct 07** — `confidant nudge` — who is worth a message today, and why
 - [ ] **Thu Oct 08** — Draft-a-reply with tone control, grounded in the thread so far
 - [ ] **Fri Oct 09** — Comfort mode: what Confidant says when it has gone badly
 - [ ] **Sat Oct 10** — Crisis-resource routing, with its own test suite

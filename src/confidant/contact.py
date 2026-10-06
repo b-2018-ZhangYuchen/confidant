@@ -34,6 +34,10 @@ same fixed safety notice the profile leads with. And a thread where the owner is
 on an answer is never suggested either: a slow reply is usually a busy week (principle 5),
 and the decision to follow up belongs to the person who knows them.
 
+Looking back from an earlier moment (``until``) leaves out every message sent after it,
+so the answer is the one Confidant would have given then. Without ``until``, nothing is
+left out: an export whose clock runs ahead of this machine's should still count.
+
 Nothing here touches the network.
 """
 
@@ -81,6 +85,9 @@ RECENT = timedelta(days=28)
 
 class ContactState(StrEnum):
     NOTHING_SAVED = "nothing-saved"
+    NOT_YET = "not-yet"
+    """Looking back from ``until``, and every dated message is from after it."""
+
     NO_DATES = "no-dates"
     """Messages are saved, but none has a timestamp, so there is no "how long"."""
 
@@ -184,6 +191,8 @@ class Contact:
         name, ago = self.name, _ago(self.silence)
         if self.state is ContactState.NOTHING_SAVED:
             return f"{name}: nothing saved yet."
+        if self.state is ContactState.NOT_YET:
+            return f"{name}: nothing saved from before then."
         if self.state is ContactState.NO_DATES:
             return f"{name}: no saved message has a timestamp, so there is no telling how long."
         if self.state is ContactState.SAFETY:
@@ -244,9 +253,10 @@ class _Gathered:
     starts: list[Message] = field(default_factory=list)
     dated: list[Message] = field(default_factory=list)
     undated: int = 0
+    later: int = 0
 
 
-def _gather(conversations: Iterable[Conversation]) -> _Gathered:
+def _gather(conversations: Iterable[Conversation], until: datetime | None = None) -> _Gathered:
     """Walk every conversation once, as the timeline does: within a chat, never across.
 
     The last message of one chat is not something the first message of another is
@@ -263,6 +273,10 @@ def _gather(conversations: Iterable[Conversation]) -> _Gathered:
                 # stretch before it is kept: it is still the last contact that can be dated.
                 found.undated += 1
                 previous = None
+                continue
+            if until is not None and message.timestamp > until:
+                # Messages are in order within a conversation, so the rest are later too.
+                found.later += 1
                 continue
             found.dated.append(message)
             gap = message.timestamp - previous.timestamp if previous is not None else None
@@ -305,12 +319,17 @@ def assess(
     *,
     now: datetime,
     escalation: Escalation | None = None,
+    until: datetime | None = None,
 ) -> Contact:
-    """Where the thread with ``name`` stands at ``now``, from these conversations."""
+    """Where the thread with ``name`` stands at ``now``, from these conversations.
+
+    With ``until``, messages sent after it are left out. A danger flag is not: what a
+    red-flag check found is known now, whenever the message it found it in was sent.
+    """
     conversations = list(conversations)
     if not conversations:
         return Contact(name, ContactState.NOTHING_SAVED, now, escalation=escalation)
-    found = _gather(conversations)
+    found = _gather(conversations, until)
     if escalation is not None:
         # Checked before the timing on purpose: no rhythm or reciprocity makes reaching
         # out to someone who threatened or tracked the owner a suggestion worth making.
@@ -328,7 +347,8 @@ def assess(
             ],
         )
     if found.last is None:
-        return Contact(name, ContactState.NO_DATES, now, undated=found.undated)
+        state = ContactState.NOT_YET if found.later else ContactState.NO_DATES
+        return Contact(name, state, now, undated=found.undated)
 
     rhythm, measured = _rhythm(found.gaps)
     contact = Contact(
@@ -390,19 +410,35 @@ def _reasons(contact: Contact) -> list[str]:
     return reasons
 
 
-def assess_person(store: Store, person: str | Person, *, now: datetime | None = None) -> Contact:
+def assess_person(
+    store: Store,
+    person: str | Person,
+    *,
+    now: datetime | None = None,
+    until: datetime | None = None,
+) -> Contact:
     """Assess one saved person. Local only."""
     if isinstance(person, str):
         person = store.person(person)
     conversations = [store.load_conversation(s.id) for s in store.conversations(person)]
     # The same notice the profile and timeline lead with, from the same reads.
     escalation = build_profile(store, person).escalation
-    return assess(person.name, conversations, now=now or datetime.now(), escalation=escalation)
+    return assess(
+        person.name,
+        conversations,
+        now=now or datetime.now(),
+        escalation=escalation,
+        until=until,
+    )
 
 
-def assess_everyone(store: Store, *, now: datetime | None = None) -> list[Contact]:
+def assess_everyone(
+    store: Store, *, now: datetime | None = None, until: datetime | None = None
+) -> list[Contact]:
     """Everyone saved, most worth a message first. Local only."""
     now = now or datetime.now()
-    contacts = [assess_person(store, summary.person, now=now) for summary in store.people()]
+    contacts = [
+        assess_person(store, summary.person, now=now, until=until) for summary in store.people()
+    ]
     # Stable sort: equal priorities stay in the store's alphabetical order.
     return sorted(contacts, key=lambda contact: -contact.priority)

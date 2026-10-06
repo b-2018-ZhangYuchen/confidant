@@ -35,7 +35,7 @@ Early and honest about it. Working today:
 | ✅ | A timeline of how the back-and-forth changed, week by week, with each saved read placed where it was made |
 | ✅ | Prompt caching on Confidant's own instructions, so a run of reads pays for them once |
 | ✅ | Token and cost accounting — every command that calls Claude says what it used and roughly what it cost |
-| 🔜 | Keep-in-touch suggestions — the model behind them is in [`src/confidant/contact.py`](src/confidant/contact.py); the `nudge` command that shows them is next |
+| ✅ | Keep-in-touch suggestions — `confidant nudge` says who is worth a message today, and why, and never pushes you towards someone you are waiting on or anyone a danger flag was found with |
 | 🔜 | Comfort mode for when it goes badly |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
@@ -332,6 +332,59 @@ and starts are worked out within each conversation, never across two, and a mess
 without a timestamp cannot be placed, so the timeline says how many it left out. A
 danger flag in any conversation puts the safety notice at the top here too.
 
+### Who to write to
+
+`confidant nudge` looks at everyone saved and says whose thread is worth a message
+today. It goes by three things: whose turn it is (if they wrote last and had no answer,
+it is yours), how long it has been against the rhythm the two of you usually keep, and
+who has been doing the reaching out lately. Warmth halves every two weeks of quiet, and
+after four weeks a thread counts as gone quiet rather than due. Two things it never
+does: suggest writing to someone you are already waiting on, because a slow reply is
+usually a busy week and following up is your call; and suggest writing to anyone a
+red-flag check found danger-tier behavior from, whose safety notice goes at the top
+instead. When you have been carrying a thread, it says so.
+
+Each suggestion comes with its reasons, everyone else gets one line, and
+`confidant nudge NAME` gives anyone's reasons in full. It is local. `--at` answers as
+things stood at another moment, leaving out later messages. After saving both Robin
+exports and `examples/pressure_chat.txt` as Casey, and checking Casey's for red flags
+with `profile Casey --update`:
+
+```bash
+confidant nudge --at "2026-04-14 09:00"
+```
+
+prints
+
+```
+Casey: not suggested. A danger-tier red flag was found with them.
+
+!! Something in Casey's messages is serious: tracking where you are and pressure to pull
+   away from friends or family.
+
+   - You do not have to share your location or account for where you are. If you have
+     already shared it in an app, you can turn that off without explaining.
+   - Keep your plans with friends and family. They are the people to talk this through
+     with.
+   - You do not owe them a reply, and you do not have to decide anything right away.
+     Talk it through with someone you trust first.
+   - If you ever feel physically unsafe, call your local emergency number.
+  - Confidant does not suggest getting in touch with someone a red-flag check found danger-tier behavior from. Whether to is yours to decide, ideally with someone you trust.
+
+Worth a message today
+
+Robin: worth a message. You last talked 3 weeks ago.
+  - The two of you usually pick things up every 2 days.
+  - In the four weeks to the last message, Robin started 5 of 11 stretches and sent 17 of 32 messages.
+
+This goes by the timing of saved messages alone. It cannot see calls, plans made
+in person, or other apps, and whether to write is yours to decide.
+```
+
+Robin is still worth a message after three weeks, but only just: another week and the
+thread would count as gone quiet. The last line is printed every time, because the
+quiet stretch may be nothing more than the two of you talking somewhere else.
+
 ### What gets sent
 
 Before `analyze` or `flags` builds a request, the transcript is redacted on your machine.
@@ -393,7 +446,7 @@ Your chat history is about as private as data gets, and this repo is built aroun
   `examples/sample_chat.txt`, `examples/sample_chat_later.txt`,
   `examples/pressure_chat.txt`, and `examples/details_chat.txt`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
-- `confidant add`, `list`, `show`, `remove`, `profile`, and `timeline` never make a network call either. They
+- `confidant add`, `list`, `show`, `remove`, `profile`, `timeline`, and `nudge` never make a network call either. They
   keep people and conversations in one SQLite file at `~/.confidant/confidant.db`, or
   wherever `CONFIDANT_DB` points. It is in your home directory rather than wherever you
   ran the command, so it cannot end up inside a git checkout; it is readable only by you
@@ -419,7 +472,7 @@ from:
 | `CONFIDANT_MODEL` | `claude-opus-5` | |
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
-| `CONFIDANT_DB` | `~/.confidant/confidant.db` | Where `add`, `list`, `show`, `remove`, `profile`, and `timeline` keep people, conversations, and reads. |
+| `CONFIDANT_DB` | `~/.confidant/confidant.db` | Where `add`, `list`, `show`, `remove`, `profile`, `timeline`, and `nudge` keep people, conversations, and reads. |
 
 `confidant --help` lists the same, with examples, and every subcommand's `--help` shows
 the transcript format. Every failure is one sentence on stderr, never a traceback, and

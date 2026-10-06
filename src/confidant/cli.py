@@ -11,6 +11,7 @@ confidant show     Robin
 confidant remove   Robin
 confidant profile  Robin                           # local; --update calls Claude
 confidant timeline Robin                           # local
+confidant nudge                                    # local
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from confidant.client import IncompleteResponse, ModelRefusal
 from confidant.config import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ConfigError, Settings
 from confidant.ingest.transcript import TranscriptError, read_transcript
 from confidant.models import Conversation, Role
+from confidant.nudge import build_nudge
 from confidant.profile import build_profile, read_conversation
 from confidant.progress import StatusLine
 from confidant.prompts.common import render_conversation
@@ -186,7 +188,7 @@ def _remove(store: Store, args: argparse.Namespace) -> str | None:
     return f"Forgot {what}."
 
 
-_STORE_COMMANDS = ("add", "list", "show", "remove", "timeline")
+_STORE_COMMANDS = ("add", "list", "show", "remove", "timeline", "nudge")
 
 # Everything a model call can fail with, mapped to an exit code by _model_failure.
 _MODEL_ERRORS = (
@@ -290,6 +292,8 @@ def _run_store_command(args: argparse.Namespace) -> int:
                 out = _show_person(store, args.name)
             elif args.command == "timeline":
                 out = build_timeline(store, args.name, Period(args.by)).to_text()
+            elif args.command == "nudge":
+                out = build_nudge(store, args.name, at=args.at).to_text()
             else:
                 out = _remove(store, args)
     except UnknownPerson as exc:
@@ -318,10 +322,11 @@ examples:
   confidant show Robin
   confidant profile Robin --update
   confidant timeline Robin
+  confidant nudge
 
 stats and redact never touch the network, and neither do add, list, show,
-remove, profile, and timeline, which keep people and their conversations in a
-local file.
+remove, profile, timeline, and nudge, which keep people and their conversations
+in a local file.
 analyze, flags, and profile --update send the redacted transcript to the
 Anthropic API and nowhere else, and end with a line on stderr saying how many
 tokens they used and roughly what that cost.
@@ -488,7 +493,37 @@ def _build_parser() -> argparse.ArgumentParser:
         default=Period.WEEK.value,
         help="How to group messages (default: week).",
     )
+
+    nudge = subcommands.add_parser(
+        "nudge",
+        help="Show who is worth a message today, and why. Runs locally.",
+        description=(
+            "Show who is worth a message today, and why: whose turn it is, how long it "
+            "has been against your usual rhythm, and who has been doing the reaching "
+            "out. Never suggests writing to someone you are waiting on, or anyone a "
+            "red-flag check found danger-tier behavior from. Runs locally."
+        ),
+    )
+    nudge.add_argument("name", nargs="?", help="Show just this person, with every reason.")
+    nudge.add_argument(
+        "--at",
+        type=_moment,
+        metavar="WHEN",
+        help=(
+            "Answer as things stood at this time, leaving out later messages, e.g. "
+            "'2026-03-14' or '2026-03-14 18:00'."
+        ),
+    )
     return parser
+
+
+def _moment(text: str) -> datetime:
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"{text!r} is not a date; use YYYY-MM-DD or 'YYYY-MM-DD HH:MM'"
+        ) from None
 
 
 def _api_error(exc: anthropic.APIError, settings: Settings) -> str:

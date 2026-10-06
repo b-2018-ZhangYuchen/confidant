@@ -58,7 +58,7 @@ has a threat in it.
 ### 8. The data stays put
 
 `confidant stats`, `confidant redact`, and the commands that manage who the owner is
-seeing (`add`, `list`, `show`, `remove`, `profile`, `timeline`) never make a network call. `confidant analyze`,
+seeing (`add`, `list`, `show`, `remove`, `profile`, `timeline`, `nudge`) never make a network call. `confidant analyze`,
 `confidant flags`, and `confidant profile --update` send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
 third parties. What they send is redacted first: names, phone numbers, email and street
 addresses, links, and handles are replaced with placeholders on the owner's machine, and
