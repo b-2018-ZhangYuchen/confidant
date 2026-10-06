@@ -35,7 +35,7 @@ Early and honest about it. Working today:
 | ✅ | A timeline of how the back-and-forth changed, week by week, with each saved read placed where it was made |
 | ✅ | Prompt caching on Confidant's own instructions, so a run of reads pays for them once |
 | ✅ | Token and cost accounting — every command that calls Claude says what it used and roughly what it cost |
-| 🔜 | Keep-in-touch suggestions |
+| 🔜 | Keep-in-touch suggestions — the model behind them is in [`src/confidant/contact.py`](src/confidant/contact.py); the `nudge` command that shows them is next |
 | 🔜 | Comfort mode for when it goes badly |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
