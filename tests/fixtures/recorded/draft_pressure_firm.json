@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. The last two drafts are there to be dropped: the third quotes a line Casey never wrote (a paraphrase of \"who are you with right now\"), and the fourth carries a placeholder this request never issued.",
+  "source": {
+    "analysis": "draft",
+    "transcript": "examples/pressure_chat.txt",
+    "tone": "firm"
+  },
+  "request": {
+    "schema": "DraftScan",
+    "model": "claude-opus-5",
+    "system_sha256": "a08ce02ddeaa8c287c9dcec5895ffda69da2bc5e03b8d8cc54b24a686ef71bfa",
+    "messages_sha256": "f5ee6670bcb84e1ef995c09bf1b60565d082a0820db97021847f6983934a5ad5"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "where_it_stands": "[MATCH]'s last message says [OWNER] cares less than they do, after [OWNER] spent an evening with friends and [MATCH] asked who [OWNER] was with just before midnight.",
+      "replies": [
+        {
+          "text": "I had a good night with my friends and I'm not going to apologize for it. I'm also not sharing my location.",
+          "picks_up": [
+            "I guess I just care more than you do. whatever",
+            "send me your location next time you're out"
+          ],
+          "why": "Keeps both boundaries without arguing about who cares more."
+        },
+        {
+          "text": "Seeing my friends isn't a sign I don't care. I'm going to keep doing it.",
+          "picks_up": [
+            "your friends again? they don't even like me"
+          ],
+          "why": "Answers the guilt directly, once, and does not leave room to negotiate."
+        },
+        {
+          "text": "I'm not going to check in about where I am or who I'm with. I'll talk to you tomorrow.",
+          "picks_up": [
+            "who are you with tonight"
+          ],
+          "why": "Names the checking-up and ends the conversation for now."
+        },
+        {
+          "text": "I'm going to take a break from talking for a bit. Text [PHONE_2] if it's urgent.",
+          "picks_up": [
+            "who are you with right now"
+          ],
+          "why": "Steps back without a fight."
+        }
+      ],
+      "before_sending": "[MATCH] pushed for your location after you said no, asked who you were with while you were out with friends, and answered your evening out with guilt. You do not owe them a reply, and not answering is also a complete answer."
+    },
+    "usage": {
+      "input_tokens": 698,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1018,
+      "output_tokens": 1164
+    }
+  }
+}

@@ -36,6 +36,7 @@ Early and honest about it. Working today:
 | ✅ | Prompt caching on Confidant's own instructions, so a run of reads pays for them once |
 | ✅ | Token and cost accounting — every command that calls Claude says what it used and roughly what it cost |
 | ✅ | Keep-in-touch suggestions — `confidant nudge` says who is worth a message today, and why, and never pushes you towards someone you are waiting on or anyone a danger flag was found with |
+| ✅ | Drafting your next message in a tone you pick, each draft tied to the line it answers — and never sent for you |
 | 🔜 | Comfort mode for when it goes badly |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
@@ -100,8 +101,8 @@ Sam <-> Robin
   last message     2026-03-05 21:36
 ```
 
-While `analyze` or `flags` is waiting on Claude, a single line on stderr says what stage
-it has reached, and rewrites itself as it goes:
+While `analyze`, `flags`, or `draft` is waiting on Claude, a single line on stderr says
+what stage it has reached, and rewrites itself as it goes:
 
 ```
 confidant: writing the report: green flags... 23s
@@ -385,9 +386,70 @@ Robin is still worth a message after three weeks, but only just: another week an
 thread would count as gone quiet. The last line is printed every time, because the
 quiet stretch may be nothing more than the two of you talking somewhere else.
 
+### Drafting a reply
+
+`confidant draft` asks Claude for two or three versions of your next message. Give it a
+transcript file, or the name of someone saved to draft into their most recent
+conversation:
+
+```bash
+confidant draft examples/sample_chat.txt
+```
+
+prints
+
+```
+Sam asked to be distracted after a hard week, and Robin has offered an opinion about airport carpet. It is Sam's turn, and the opening is an easy one.
+
+DRAFTS (natural)
+  1. ok I'm ready. airport carpet. go
+       re: "I have a strongly held opinion about airport carpet that I have been saving"
+       Takes the distraction Robin offered, in Sam's short lowercase style.
+
+  2. wait is this a pro carpet or anti carpet opinion, I need to know what I'm getting into
+       re: "I have a strongly held opinion about airport carpet that I have been saving"
+       Plays along with the bit and hands the next line back to Robin.
+
+  3. distract me with the carpet and then I want to hear when we're doing the coffee cart
+       re: "that's a first date now, I don't make the rules"
+       re: "distracted please"
+       Picks the first-date joke back up, which nobody has done since Robin made it.
+
+Nothing has been sent. These are starting points; what goes out should sound like you.
+```
+
+followed on stderr by
+
+```
+confidant: used 1,760 input tokens (1,018 written to the cache) and 1,287 output tokens, about $0.042.
+```
+
+(The hand-written recording the tests use again, not a live call.) The default tone,
+`natural`, is how you already write in the thread — your length, your capitalization,
+your humor. `--tone` picks another: `warm`, `playful`, `direct`, `brief`, or `firm`, for
+holding a line without apologizing for it. `--say` says what you want the message to
+do, and is redacted along with the transcript before it is sent:
+
+```bash
+confidant draft Robin --tone direct --say "suggest the coffee cart on saturday"
+```
+
+Every draft quotes the line it picks up on, from either of you, and a draft whose quote
+is not in the thread is dropped: a reply that answers nothing anyone said is a generic
+line, not a reply. So is a draft holding a placeholder that cannot be filled back in, so
+you never copy a `[PHONE_4]` into a real message. Where a draft needs something only you
+know, it leaves a blank like `{day}`. Drafts invent nothing about you, and never use
+guilt, jealousy, or games about reply timing.
+
+If your message is the last one in the thread, the drafts are follow-ups and the report
+says so first, since nothing there is waiting on you. With a saved person, a danger-tier
+flag from any of their conversations puts the safety notice above the drafts, and a
+transcript showing pressure gets drafts that hold your boundary whatever tone you asked
+for. Confidant never sends a message for you.
+
 ### What gets sent
 
-Before `analyze` or `flags` builds a request, the transcript is redacted on your machine.
+Before `analyze`, `flags`, or `draft` builds a request, the transcript is redacted on your machine.
 Both names become `[OWNER]` and `[MATCH]`; phone numbers, long account-like numbers,
 email addresses, street addresses, links, and social handles become numbered
 placeholders. The same detail always gets the same placeholder, so the model can still
@@ -454,8 +516,8 @@ Your chat history is about as private as data gets, and this repo is built aroun
   instead of leaving them recoverable in the file. It holds the conversations as you
   wrote them — redaction happens on the way to the API, not on the way to disk — and the
   reads `profile --update` saves, with names put back, which `remove` overwrites too.
-- `confidant analyze`, `confidant flags`, and `confidant profile --update` send the
-  redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
+- `confidant analyze`, `confidant flags`, `confidant draft`, and `confidant profile
+  --update` send the redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
   Confidant's own instructions are marked for prompt caching, so a `profile --update`
   that reads several conversations pays full price for them once; the transcript is
@@ -468,7 +530,7 @@ from:
 
 | Variable | Default | |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, and `profile --update`; nothing else uses it. |
+| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, `draft`, and `profile --update`; nothing else uses it. |
 | `CONFIDANT_MODEL` | `claude-opus-5` | |
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |

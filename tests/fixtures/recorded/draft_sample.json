@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. The third draft's second quote is the owner's own line, which grounding accepts: a reply can build on either side of the thread.",
+  "source": {
+    "analysis": "draft",
+    "transcript": "examples/sample_chat.txt"
+  },
+  "request": {
+    "schema": "DraftScan",
+    "model": "claude-opus-5",
+    "system_sha256": "a08ce02ddeaa8c287c9dcec5895ffda69da2bc5e03b8d8cc54b24a686ef71bfa",
+    "messages_sha256": "0b002cac97a726726656052b8fac438b0813113b88dc38480d21a44ac6bed560"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "where_it_stands": "[OWNER] asked to be distracted after a hard week, and [MATCH] has offered an opinion about airport carpet. It is [OWNER]'s turn, and the opening is an easy one.",
+      "replies": [
+        {
+          "text": "ok I'm ready. airport carpet. go",
+          "picks_up": [
+            "I have a strongly held opinion about airport carpet that I have been saving"
+          ],
+          "why": "Takes the distraction [MATCH] offered, in [OWNER]'s short lowercase style."
+        },
+        {
+          "text": "wait is this a pro carpet or anti carpet opinion, I need to know what I'm getting into",
+          "picks_up": [
+            "I have a strongly held opinion about airport carpet that I have been saving"
+          ],
+          "why": "Plays along with the bit and hands the next line back to [MATCH]."
+        },
+        {
+          "text": "distract me with the carpet and then I want to hear when we're doing the coffee cart",
+          "picks_up": [
+            "that's a first date now, I don't make the rules",
+            "distracted please"
+          ],
+          "why": "Picks the first-date joke back up, which nobody has done since [MATCH] made it."
+        }
+      ],
+      "before_sending": null
+    },
+    "usage": {
+      "input_tokens": 742,
+      "cache_creation_input_tokens": 1018,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 1287
+    }
+  }
+}

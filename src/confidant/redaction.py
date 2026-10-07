@@ -102,6 +102,9 @@ class Redaction:
     kinds: dict[str, str] = field(default_factory=dict)
     """Placeholder to its kind, a key of :data:`KINDS`."""
 
+    notes: list[str] = field(default_factory=list)
+    """The owner's own free text for the request, redacted with the same key."""
+
     def restore_text(self, text: str) -> str:
         """Swap every placeholder this redaction issued back for what it replaced.
 
@@ -111,6 +114,14 @@ class Redaction:
         if not self.originals:
             return text
         return _PLACEHOLDER.sub(lambda m: self.originals.get(m[0], m[0]), text)
+
+    def unissued(self, text: str) -> list[str]:
+        """Placeholders in ``text`` that this redaction never issued.
+
+        Restoring leaves these as they are, so anything the owner might copy and send
+        should be checked for them first.
+        """
+        return [m[0] for m in _PLACEHOLDER.finditer(text) if m[0] not in self.originals]
 
     def restore(self, value: T) -> T:
         """A copy of ``value`` with placeholders restored in every string field."""
@@ -256,11 +267,15 @@ class _Redactor:
         return "".join(out)
 
 
-def redact(conversation: Conversation, *, names: Iterable[str] = ()) -> Redaction:
+def redact(
+    conversation: Conversation, *, names: Iterable[str] = (), notes: Iterable[str] = ()
+) -> Redaction:
     """Replace identifying details in ``conversation`` with placeholders.
 
     ``names`` are redacted in addition to the owner, the match, and anything listed in
-    the conversation's ``private_names``.
+    the conversation's ``private_names``. ``notes`` is anything else the owner wrote for
+    the request; it shares the transcript's placeholders, so "ask Maya along" becomes
+    "ask [NAME_1] along" if the transcript already called her that.
     """
     extra = [*conversation.private_names, *names]
     redactor = _Redactor(conversation, extra)
@@ -276,4 +291,11 @@ def redact(conversation: Conversation, *, names: Iterable[str] = ()) -> Redactio
         messages=messages,
         source=None,
     )
-    return Redaction(conversation=redacted, originals=redactor.originals, kinds=redactor.kinds)
+    # After the messages, so a note never changes how the transcript itself is numbered.
+    redacted_notes = [redactor.text(note) for note in notes]
+    return Redaction(
+        conversation=redacted,
+        originals=redactor.originals,
+        kinds=redactor.kinds,
+        notes=redacted_notes,
+    )

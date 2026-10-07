@@ -43,6 +43,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from confidant.analysis.draft import draft_reply
 from confidant.analysis.flags import analyze_flags
 from confidant.analysis.personality import analyze_personality
 from confidant.client import ModelRefusal, build_client
@@ -52,6 +53,7 @@ from confidant.ingest.transcript import read_transcript
 __all__ = [
     "ANALYSES",
     "FORMAT_VERSION",
+    "OPTIONS",
     "Fingerprint",
     "Recording",
     "RecordingClient",
@@ -133,7 +135,8 @@ class Recording:
     provenance: Provenance = "recorded"
     model: str | None = None
     source: dict[str, str] = field(default_factory=dict)
-    """How to make this recording again: ``{"analysis": ..., "transcript": ...}``."""
+    """How to make this recording again: ``{"analysis": ..., "transcript": ...}``, plus
+    any options the analysis was run with, such as a draft's ``"tone"``."""
 
     note: str | None = None
     usage: dict[str, int] | None = None
@@ -426,7 +429,12 @@ def _usage_dict(usage: Any) -> dict[str, int] | None:
 ANALYSES: dict[str, Callable[..., Any]] = {
     "analyze": analyze_personality,
     "flags": analyze_flags,
+    "draft": draft_reply,
 }
+
+# Options an analysis takes beyond the transcript. A recording keeps them in its source,
+# since a draft in one tone answers a different request from a draft in another.
+OPTIONS: dict[str, tuple[str, ...]] = {"draft": ("tone", "say")}
 
 
 def run_analysis(
@@ -435,13 +443,20 @@ def run_analysis(
     *,
     client: Any,
     settings: Settings | None = None,
+    options: dict[str, str] | None = None,
 ) -> Any:
     """Run one of the CLI's analyses against ``transcript`` with ``client``."""
     if analysis not in ANALYSES:
         raise RecordingError(f"Unknown analysis {analysis!r}; expected one of {list(ANALYSES)}")
+    options = options or {}
+    unknown = set(options) - set(OPTIONS.get(analysis, ()))
+    if unknown:
+        raise RecordingError(f"{analysis} does not take {', '.join(sorted(unknown))}")
     conversation = read_transcript(transcript)
     # Settings() rather than from_env(): a replay must not change with CONFIDANT_MODEL.
-    return ANALYSES[analysis](conversation, settings=settings or Settings(), client=client)
+    return ANALYSES[analysis](
+        conversation, settings=settings or Settings(), client=client, **options
+    )
 
 
 def replay(recording: Recording | str | Path, *, strict: bool = True) -> Any:
@@ -454,7 +469,13 @@ def replay(recording: Recording | str | Path, *, strict: bool = True) -> Any:
 def _run_source(recording: Recording, client: ReplayClient) -> Any:
     if not {"analysis", "transcript"} <= recording.source.keys():
         raise RecordingError(f"{recording._describe()} does not say how it was made ('source')")
-    return run_analysis(recording.source["analysis"], recording.source["transcript"], client=client)
+    options = {k: v for k, v in recording.source.items() if k not in ("analysis", "transcript")}
+    return run_analysis(
+        recording.source["analysis"],
+        recording.source["transcript"],
+        client=client,
+        options=options,
+    )
 
 
 # -- command line ---------------------------------------------------------------
@@ -476,17 +497,24 @@ def _portable(transcript: Path) -> str:
         return transcript.as_posix()
 
 
-def _record(analysis: str, transcript: Path, out: Path, note: str | None) -> Path:
+def _record(
+    analysis: str,
+    transcript: Path,
+    out: Path,
+    note: str | None,
+    options: dict[str, str] | None = None,
+) -> Path:
     _check_fictional(transcript)
     settings = Settings.from_env()
+    options = options or {}
     recorder = RecordingClient(
         build_client(settings),
         out,
-        source={"analysis": analysis, "transcript": _portable(transcript)},
+        source={"analysis": analysis, "transcript": _portable(transcript), **options},
         note=note,
     )
     try:
-        run_analysis(analysis, transcript, client=recorder, settings=settings)
+        run_analysis(analysis, transcript, client=recorder, settings=settings, options=options)
     except ModelRefusal as exc:
         # A refusal is worth keeping as a recording; it was saved before the raise.
         print(f"recorded a refusal: {exc}", file=sys.stderr)
@@ -531,6 +559,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     record.add_argument("transcript", type=Path, help="A fictional transcript in examples/.")
     record.add_argument("out", type=Path, help="Where to write the recording.")
     record.add_argument("--note", help="Why this recording exists.")
+    record.add_argument("--tone", help="For draft: the tone to draft in.")
+    record.add_argument("--say", help="For draft: what the owner wants to say.")
 
     stamp = sub.add_parser(
         "stamp", help="Re-fingerprint a hand-written recording after a prompt change."
@@ -540,7 +570,13 @@ def main(argv: Iterable[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         if args.command == "record":
-            print(f"wrote {_record(args.analysis, args.transcript, args.out, args.note)}")
+            options = {
+                name: getattr(args, name)
+                for name in OPTIONS.get(args.analysis, ())
+                if getattr(args, name) is not None
+            }
+            out = _record(args.analysis, args.transcript, args.out, args.note, options)
+            print(f"wrote {out}")
         else:
             for path in args.recordings:
                 changed = _stamp(path)
