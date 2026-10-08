@@ -11,7 +11,16 @@ from confidant.analysis.flags import DANGER_CATEGORIES, Category, Flag, FlagScan
 from confidant.analysis.personality import Evidence
 from confidant.cli import main
 from confidant.ingest.transcript import read_transcript
-from confidant.safety import CATEGORY_STEPS, ESCALATION_ORDER, STEPS, escalate
+from confidant.safety import (
+    CATEGORY_STEPS,
+    ESCALATION_ORDER,
+    STEPS,
+    SUPPORT_HEADLINE,
+    SUPPORT_STEPS,
+    escalate,
+    mentions_self_harm,
+    support_notice,
+)
 
 
 @pytest.fixture
@@ -201,3 +210,46 @@ def test_cli_leads_with_the_notice_for_the_pressure_example(capsys, monkeypatch)
     )
     assert payload["escalation"]["categories"] == ["monitoring", "isolation"]
     assert payload["discarded_danger"] == 0
+
+
+# -- the owner's own safety ------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I want to die",
+        "thinking about killing myself",
+        "I don't want to live anymore",
+        "I don’t want to be here",
+        "maybe I should just end it all",
+        "I've been self-harming again",
+        "everyone would be better off dead without me",
+        "suicidal tbh",
+    ],
+)
+def test_plain_phrasings_of_self_harm_are_recognized(text):
+    assert mentions_self_harm(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        None,
+        "",
+        "this is killing me",
+        "I want to end things with him",
+        "I'd die for those fries",
+        "he ghosted me and I feel awful",
+    ],
+)
+def test_ordinary_heartbreak_is_not_mistaken_for_it(text):
+    assert not mentions_self_harm(text)
+
+
+def test_the_support_notice_is_fixed_text():
+    notice = support_notice()
+    assert notice.headline == SUPPORT_HEADLINE
+    assert notice.steps == list(SUPPORT_STEPS)
+    assert notice.physical_risk
+    assert "emergency number" in notice.to_text()

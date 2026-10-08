@@ -43,6 +43,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from confidant.analysis.comfort import comfort
 from confidant.analysis.draft import draft_reply
 from confidant.analysis.flags import analyze_flags
 from confidant.analysis.personality import analyze_personality
@@ -430,11 +431,12 @@ ANALYSES: dict[str, Callable[..., Any]] = {
     "analyze": analyze_personality,
     "flags": analyze_flags,
     "draft": draft_reply,
+    "comfort": comfort,
 }
 
 # Options an analysis takes beyond the transcript. A recording keeps them in its source,
 # since a draft in one tone answers a different request from a draft in another.
-OPTIONS: dict[str, tuple[str, ...]] = {"draft": ("tone", "say")}
+OPTIONS: dict[str, tuple[str, ...]] = {"draft": ("tone", "say"), "comfort": ("what",)}
 
 
 def run_analysis(
@@ -561,6 +563,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     record.add_argument("--note", help="Why this recording exists.")
     record.add_argument("--tone", help="For draft: the tone to draft in.")
     record.add_argument("--say", help="For draft: what the owner wants to say.")
+    record.add_argument("--what", help="For comfort: what happened, in the owner's words.")
 
     stamp = sub.add_parser(
         "stamp", help="Re-fingerprint a hand-written recording after a prompt change."

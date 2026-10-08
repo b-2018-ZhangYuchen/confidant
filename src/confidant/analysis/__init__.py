@@ -1,5 +1,6 @@
 """Model-backed readings of a conversation."""
 
+from confidant.analysis.comfort import ComfortReport, Moment, comfort
 from confidant.analysis.draft import DraftReport, Reply, Tone, draft_reply
 from confidant.analysis.flags import Flag, FlagReport, Severity, analyze_flags
 from confidant.analysis.personality import (
@@ -11,11 +12,13 @@ from confidant.analysis.personality import (
 )
 
 __all__ = [
+    "ComfortReport",
     "Confidence",
     "DraftReport",
     "Evidence",
     "Flag",
     "FlagReport",
+    "Moment",
     "PersonalityReport",
     "Reply",
     "Severity",
@@ -23,5 +26,6 @@ __all__ = [
     "Trait",
     "analyze_flags",
     "analyze_personality",
+    "comfort",
     "draft_reply",
 ]

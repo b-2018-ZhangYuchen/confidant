@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. A slow fade after two dates, told in the owner's words with --what. Every quote in you_did_well is from the owner's own messages.",
+  "source": {
+    "analysis": "comfort",
+    "transcript": "examples/faded_chat.txt",
+    "what": "two good dates, then Jamie went quiet"
+  },
+  "request": {
+    "schema": "ComfortScan",
+    "model": "claude-opus-5",
+    "system_sha256": "4ff7afab337cfa947f63f152ae5976204e23e66771567e18a57617d284c6b65b",
+    "messages_sha256": "b446577bd9968f675eb5c31aec86ed01c5929a89f7bf336457e9f7f1b55cd1c0"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "what_happened": "After two dates that you both enjoyed, [MATCH]'s replies got slower and shorter: a day to answer about the interview, a no to Saturday without another day offered, and nothing since.",
+      "what_it_says": "The messages cannot tell you why. [MATCH] said the week was a lot, and that may be all it is, or it may be the start of them stepping back without saying so. Both are common, and neither is about something you did: nothing in your messages pushed, and they were warm right up to the last one you got.",
+      "you_did_well": [
+        {
+          "point": "You remembered the interview and asked about it on the day.",
+          "quote": "how did the interview go?"
+        },
+        {
+          "point": "You took the no on Saturday gracefully and left the door open without pressing.",
+          "quote": "all good, maybe next week then"
+        },
+        {
+          "point": "You were funny about yourself, which made it easy to talk to you.",
+          "quote": "medium is the nicest thing anyone has said about my upper body strength"
+        }
+      ],
+      "worth_knowing": null,
+      "next_steps": [
+        "You do not need to send anything else. Your last message was kind and it is still there for them to answer.",
+        "If you feel the pull to write again tonight, give it until the morning and see if you still want to.",
+        "Tell a friend how it went. Two good dates is a real thing to be disappointed about."
+      ],
+      "owner_at_risk": false
+    },
+    "usage": {
+      "input_tokens": 912,
+      "cache_creation_input_tokens": 1146,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 1402
+    }
+  }
+}

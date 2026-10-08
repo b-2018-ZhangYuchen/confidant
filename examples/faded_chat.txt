@@ -1,0 +1,17 @@
+# Entirely fictional. Written so comfort mode has something to work with in tests and
+# demos: a few good weeks, then a slow fade. No real conversation was used or adapted.
+# owner: Alex
+# match: Jamie
+
+[2026-05-02 18:10] Jamie: ok the ramen place was a 10. thank you for picking it
+[2026-05-02 18:24] Alex: right?? I've been wanting to take someone there for months
+[2026-05-02 18:25] Jamie: next one is my pick. do you like climbing? there's a gym near me
+[2026-05-02 18:40] Alex: I've never tried but I'm in. fair warning I will be terrible
+[2026-05-09 11:02] Jamie: you were not terrible. you were medium
+[2026-05-09 11:15] Alex: medium is the nicest thing anyone has said about my upper body strength
+[2026-05-12 20:30] Alex: how did the interview go?
+[2026-05-13 22:48] Jamie: good I think! sorry, this week is a lot
+[2026-05-13 22:52] Alex: no worries at all. want to get dinner saturday to celebrate?
+[2026-05-15 09:05] Jamie: can't saturday, sorry
+[2026-05-15 09:30] Alex: all good, maybe next week then
+[2026-05-20 19:12] Alex: saw a climbing gym ad and thought of my medium arms. hope work calmed down

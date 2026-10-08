@@ -5,6 +5,7 @@ confidant redact   examples/details_chat.txt     # local: what would be sent
 confidant analyze  examples/sample_chat.txt      # calls Claude
 confidant flags    examples/sample_chat.txt      # calls Claude
 confidant draft    examples/sample_chat.txt      # calls Claude; or a saved name
+confidant comfort  examples/faded_chat.txt       # calls Claude; or a saved name
 
 confidant add      Robin examples/sample_chat.txt  # local store, no API call
 confidant list
@@ -26,6 +27,7 @@ from pathlib import Path
 import anthropic
 
 from confidant import __version__
+from confidant.analysis.comfort import comfort
 from confidant.analysis.draft import DEFAULT_TONE, draft_reply
 from confidant.analysis.flags import analyze_flags
 from confidant.analysis.personality import analyze_personality
@@ -295,8 +297,8 @@ def _latest(conversations: list[StoredConversation]) -> StoredConversation:
     )[1]
 
 
-def _draft_source(args: argparse.Namespace) -> tuple[Conversation, Escalation | None]:
-    """The conversation to draft into, and any safety notice saved for that person.
+def _thread_source(args: argparse.Namespace) -> tuple[Conversation, Escalation | None]:
+    """The conversation to work on, and any safety notice saved for that person.
 
     A path to a file is read as a transcript. Anything else is taken as the name of
     someone saved, and their most recent conversation is used.
@@ -319,14 +321,16 @@ def _draft_source(args: argparse.Namespace) -> tuple[Conversation, Escalation | 
             )
         conversation = store.load_conversation(_latest(conversations).id)
         # From every saved check, not only this conversation's: a threat made in an
-        # older chat is still the most important thing to know before writing back.
+        # older chat is still the most important thing to know before writing back, or
+        # before being told how to feel about it ending.
         escalation = build_profile(store, person).escalation
     return conversation, escalation
 
 
-def _run_draft(args: argparse.Namespace) -> int:
+def _run_on_thread(args: argparse.Namespace) -> int:
+    """``draft`` and ``comfort``: one model call on a transcript file or a saved thread."""
     try:
-        conversation, escalation = _draft_source(args)
+        conversation, escalation = _thread_source(args)
     except UnknownPerson as exc:
         print(f"confidant: {exc}. 'confidant list' shows who is.", file=sys.stderr)
         return 2
@@ -341,14 +345,23 @@ def _run_draft(args: argparse.Namespace) -> int:
         settings = Settings.from_env()
         status = _status(args)
         with status or contextlib.nullcontext():
-            report = draft_reply(
-                conversation,
-                tone=args.tone,
-                say=args.say,
-                settings=settings,
-                on_progress=status,
-                on_usage=meter,
-            )
+            if args.command == "comfort":
+                report = comfort(
+                    conversation,
+                    what=args.what,
+                    settings=settings,
+                    on_progress=status,
+                    on_usage=meter,
+                )
+            else:
+                report = draft_reply(
+                    conversation,
+                    tone=args.tone,
+                    say=args.say,
+                    settings=settings,
+                    on_progress=status,
+                    on_usage=meter,
+                )
     except _MODEL_ERRORS as exc:
         code, message = _model_failure(exc, settings)
         print(f"confidant: {message}", file=sys.stderr)
@@ -399,6 +412,7 @@ examples:
   confidant analyze examples/sample_chat.txt
   confidant flags examples/pressure_chat.txt --json
   confidant draft examples/sample_chat.txt --tone playful
+  confidant comfort examples/faded_chat.txt
   confidant add Robin examples/sample_chat.txt
   confidant show Robin
   confidant profile Robin --update
@@ -408,13 +422,13 @@ examples:
 stats and redact never touch the network, and neither do add, list, show,
 remove, profile, timeline, and nudge, which keep people and their conversations
 in a local file.
-analyze, flags, draft, and profile --update send the redacted transcript to the
-Anthropic API and nowhere else, and end with a line on stderr saying how many
-tokens they used and roughly what that cost. draft never sends a message: it
-prints suggestions and you do the rest.
+analyze, flags, draft, comfort, and profile --update send the redacted transcript
+to the Anthropic API and nowhere else, and end with a line on stderr saying how
+many tokens they used and roughly what that cost.
+draft never sends a message: it prints suggestions and you do the rest.
 
 environment (or put these in .env):
-  ANTHROPIC_API_KEY     needed for analyze, flags, draft, and profile --update
+  ANTHROPIC_API_KEY     needed for analyze, flags, draft, comfort, and profile --update
   CONFIDANT_DB          the local store, default ~/.confidant/confidant.db
   CONFIDANT_MODEL       default {DEFAULT_MODEL}
   CONFIDANT_EFFORT      low, medium, high (default), xhigh, or max
@@ -512,27 +526,49 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="TEXT",
         help="What you want the message to do, e.g. 'suggest the coffee cart on saturday'.",
     )
-    draft.add_argument(
-        "--owner", metavar="NAME", help="Your name in the transcript. Overrides '# owner:'."
+
+    comfort_parser = subcommands.add_parser(
+        "comfort",
+        help="For when it has gone badly: what the messages show, and what they do not.",
+        description=(
+            "For when it has gone badly: it ended, it faded, or a conversation went wrong. "
+            "Claude says what the messages show and what they cannot tell you, what you "
+            "did well (each quoted from your own messages), and a few small things for "
+            "the next day or two. Give a transcript file, or the name of someone saved "
+            "to use their most recent conversation."
+        ),
+        epilog=_FORMAT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    draft.add_argument(
-        "--match", metavar="NAME", help="Their name in the transcript. Overrides '# match:'."
+    comfort_parser.add_argument("source", metavar="TRANSCRIPT_OR_NAME")
+    comfort_parser.add_argument(
+        "--what",
+        metavar="TEXT",
+        help="What happened, in your words, e.g. 'they cancelled and went quiet'.",
     )
-    draft.add_argument(
-        "--redact",
-        action="append",
-        default=[],
-        metavar="NAME",
-        dest="private_names",
-        help="Another person's name to strip before sending. Repeat for more than one.",
-    )
-    draft.add_argument("--json", action="store_true", help="Print the drafts as JSON.")
-    draft.add_argument(
-        "--no-progress",
-        action="store_false",
-        dest="progress",
-        help="Do not show the progress line while Claude works.",
-    )
+
+    for sub in (draft, comfort_parser):
+        sub.add_argument(
+            "--owner", metavar="NAME", help="Your name in the transcript. Overrides '# owner:'."
+        )
+        sub.add_argument(
+            "--match", metavar="NAME", help="Their name in the transcript. Overrides '# match:'."
+        )
+        sub.add_argument(
+            "--redact",
+            action="append",
+            default=[],
+            metavar="NAME",
+            dest="private_names",
+            help="Another person's name to strip before sending. Repeat for more than one.",
+        )
+        sub.add_argument("--json", action="store_true", help="Print the report as JSON.")
+        sub.add_argument(
+            "--no-progress",
+            action="store_false",
+            dest="progress",
+            help="Do not show the progress line while Claude works.",
+        )
 
     add = subcommands.add_parser(
         "add",
@@ -684,8 +720,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_store_command(args)
     if args.command == "profile":
         return _run_profile(args)
-    if args.command == "draft":
-        return _run_draft(args)
+    if args.command in ("draft", "comfort"):
+        return _run_on_thread(args)
 
     try:
         conversation = read_transcript(args.transcript, owner=args.owner, match=args.match)

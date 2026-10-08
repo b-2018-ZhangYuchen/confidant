@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. The owner ended it with someone who pushed for their location and guilted them about friends. The third moment is there to be dropped: its quote is Casey's line, not the owner's.",
+  "source": {
+    "analysis": "comfort",
+    "transcript": "examples/pressure_chat.txt",
+    "what": "I ended it this morning and I feel awful about it"
+  },
+  "request": {
+    "schema": "ComfortScan",
+    "model": "claude-opus-5",
+    "system_sha256": "4ff7afab337cfa947f63f152ae5976204e23e66771567e18a57617d284c6b65b",
+    "messages_sha256": "8064df4700581b40c79d460401bef8f14bdc9be751c672085ff5160d2c427d72"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "what_happened": "[MATCH] asked for your location after you said you were not comfortable sharing it, said your friends did not like them, asked who you were with just before midnight, and answered your good night out with guilt.",
+      "what_it_says": "Feeling awful after ending something is normal, and it does not mean ending it was wrong. What the messages show is pressure to account for where you are and to see less of your friends. That is not a loss of something good.",
+      "you_did_well": [
+        {
+          "point": "You said no to sharing your location, plainly.",
+          "quote": "I'm not really comfortable sharing that yet"
+        },
+        {
+          "point": "You kept your plans with your friends.",
+          "quote": "I'm going out with friends tonight"
+        },
+        {
+          "point": "You did not argue about who cares more.",
+          "quote": "I guess I just care more than you do"
+        }
+      ],
+      "worth_knowing": null,
+      "next_steps": [
+        "You do not owe [MATCH] an explanation or a reply to anything they send now.",
+        "Muting or blocking the thread is fine if their messages keep pulling you back in.",
+        "Spend some time with the friends you kept your plans with."
+      ],
+      "owner_at_risk": false
+    },
+    "usage": {
+      "input_tokens": 884,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1146,
+      "output_tokens": 1220
+    }
+  }
+}

@@ -21,6 +21,7 @@ owner already trusts, and the local emergency number when there is a physical ri
 
 from __future__ import annotations
 
+import re
 import textwrap
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
@@ -34,8 +35,12 @@ __all__ = [
     "CATEGORY_STEPS",
     "ESCALATION_ORDER",
     "STEPS",
+    "SUPPORT_HEADLINE",
+    "SUPPORT_STEPS",
     "Escalation",
     "escalate",
+    "mentions_self_harm",
+    "support_notice",
 ]
 
 # The order the notice names things in, most immediate risk first, so that a threat is
@@ -199,4 +204,53 @@ def escalate(flags: Iterable[Flag], match_name: str) -> Escalation | None:
         headline=headline,
         steps=steps,
         physical_risk=physical,
+    )
+
+
+# -- the owner's own safety ------------------------------------------------------
+#
+# Comfort mode is used at a low moment, so it is the one command where the person at
+# risk may be the owner. The model is asked to notice; what the owner is then told is
+# fixed text, for the same reasons as the danger notice above.
+
+SUPPORT_HEADLINE = (
+    "Some of what you wrote sounds like you might be thinking about hurting yourself. "
+    "That matters more than anything about this conversation."
+)
+
+SUPPORT_STEPS: tuple[str, ...] = (
+    "If you might act on it, call your local emergency number now.",
+    "Tell someone you trust how bad it has got, today. A text that says 'can you call me' "
+    "is enough to start.",
+    "Most countries have a free crisis line you can call or text at any hour; searching "
+    "for 'crisis line' and your country will find yours.",
+    "You do not have to work out how you feel about this person tonight.",
+)
+
+# Deliberately narrow, and only ever run on what the owner typed to Confidant, never on
+# the chat: "this is killing me" is how people talk about a breakup, and "I'd die for
+# those fries" is how people text. It is a backstop for a model that misses the obvious
+# phrasings, not a detector, and erring towards showing the notice costs a paragraph.
+_SELF_HARM = re.compile(
+    r"\b("
+    r"kill(ing)? myself|suicid\w*|self[- ]?harm\w*|(hurt|harm)(ing)? myself"
+    r"|end(ing)? (it all|my life)|want(ed)? to die|better off dead"
+    r"|(do ?n[o']?t|no longer) want to (live|be alive|be here)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def mentions_self_harm(text: str | None) -> bool:
+    """Whether ``text`` uses one of the plain phrasings of wanting to hurt oneself."""
+    return bool(text) and _SELF_HARM.search(text.replace("\u2019", "'")) is not None
+
+
+def support_notice() -> Escalation:
+    """The notice shown first when the owner may be at risk themselves."""
+    return Escalation(
+        categories=["owner_at_risk"],
+        headline=SUPPORT_HEADLINE,
+        steps=list(SUPPORT_STEPS),
+        physical_risk=True,
     )

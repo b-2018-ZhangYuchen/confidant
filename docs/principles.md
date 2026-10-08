@@ -59,7 +59,7 @@ has a threat in it.
 
 `confidant stats`, `confidant redact`, and the commands that manage who the owner is
 seeing (`add`, `list`, `show`, `remove`, `profile`, `timeline`, `nudge`) never make a network call. `confidant analyze`,
-`confidant flags`, `confidant draft`, and `confidant profile --update` send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
+`confidant flags`, `confidant draft`, `confidant comfort`, and `confidant profile --update` send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
 third parties. What they send is redacted first: names, phone numbers, email and street
 addresses, links, and handles are replaced with placeholders on the owner's machine, and
 put back only in the report the owner reads. The model does not need to know who anyone
@@ -67,6 +67,10 @@ is to read how they write. Conversations Confidant remembers, and the reads it h
 directory, private to their user account, and overwritten rather than merely unlinked
 when they ask for someone to be forgotten. The `.gitignore` blocks conversation data and `.env` before anyone can
 commit them by accident. The only conversations in this repository are fictional.
+
+Comfort mode is the one place the person at risk may be the owner. When anything they
+wrote suggests they might hurt themselves, the same rule applies: the model notices, and
+what they are told is fixed text in `src/confidant/safety.py`, shown before anything else.
 
 `confidant draft` writes words the owner might send, and sends none of them. There is no
 code path in Confidant that messages anyone.

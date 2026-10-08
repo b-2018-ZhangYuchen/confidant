@@ -37,7 +37,8 @@ Early and honest about it. Working today:
 | ✅ | Token and cost accounting — every command that calls Claude says what it used and roughly what it cost |
 | ✅ | Keep-in-touch suggestions — `confidant nudge` says who is worth a message today, and why, and never pushes you towards someone you are waiting on or anyone a danger flag was found with |
 | ✅ | Drafting your next message in a tone you pick, each draft tied to the line it answers — and never sent for you |
-| 🔜 | Comfort mode for when it goes badly |
+| ✅ | Comfort mode for when it goes badly — what the messages show and what they cannot, with praise quoted from your own messages and a fixed support notice first if you may be at risk |
+| 🔜 | Crisis resources for where you are |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -101,7 +102,7 @@ Sam <-> Robin
   last message     2026-03-05 21:36
 ```
 
-While `analyze`, `flags`, or `draft` is waiting on Claude, a single line on stderr says
+While `analyze`, `flags`, `draft`, or `comfort` is waiting on Claude, a single line on stderr says
 what stage it has reached, and rewrites itself as it goes:
 
 ```
@@ -447,9 +448,68 @@ flag from any of their conversations puts the safety notice above the drafts, an
 transcript showing pressure gets drafts that hold your boundary whatever tone you asked
 for. Confidant never sends a message for you.
 
+### When it has gone badly
+
+`confidant comfort` is for after: it ended, it faded, you were turned down, or a
+conversation went wrong. Give it a transcript or the name of someone saved, and, if you
+like, what happened in your own words, since a lot of endings happen outside the chat:
+
+```bash
+confidant comfort examples/faded_chat.txt --what "two good dates, then Jamie went quiet"
+```
+
+prints
+
+```
+After two dates that you both enjoyed, Jamie's replies got slower and shorter: a day to answer about the interview, a no to Saturday without another day offered, and nothing since.
+
+Your last 2 messages have had no reply. Jamie last wrote on 2026-05-15.
+
+The messages cannot tell you why. Jamie said the week was a lot, and that may be all it is, or it may be the start of them stepping back without saying so. Both are common, and neither is about something you did: nothing in your messages pushed, and they were warm right up to the last one you got.
+
+WHAT YOU DID WELL
+  * You remembered the interview and asked about it on the day.
+      "how did the interview go?"
+  * You took the no on Saturday gracefully and left the door open without pressing.
+      "all good, maybe next week then"
+  * You were funny about yourself, which made it easy to talk to you.
+      "medium is the nicest thing anyone has said about my upper body strength"
+
+FOR THE NEXT DAY OR TWO
+  - You do not need to send anything else. Your last message was kind and it is still there for them to answer.
+  - If you feel the pull to write again tonight, give it until the morning and see if you still want to.
+  - Tell a friend how it went. Two good dates is a real thing to be disappointed about.
+
+This is read from the messages alone. Someone who knows you will be better company for the rest of it.
+```
+
+followed on stderr by
+
+```
+confidant: used 2,058 input tokens (1,146 written to the cache) and 1,402 output tokens, about $0.047.
+```
+
+(The hand-written recording the tests use, not a live call; the chat is fictional.) It
+does not tell you why it ended when the messages do not say, and it never puts it down
+to something you are. It uses no labels for anyone, promises neither that they will come
+back nor that they will not, and offers no plan for getting them back. Everything it
+says you did well quotes one of your own messages, and anything whose quote is not
+yours is left out, because comfort built on an invented compliment falls apart the
+moment you reread the chat. The line about unanswered messages is counted on your
+machine and printed in fixed words, so it is never vaguer or worse than what happened.
+
+If the chat shows threats, coercion, pressure, isolation, or tracking, the read says so
+plainly, and for someone saved with a danger flag the safety notice goes first, as
+everywhere else. If anything you wrote suggests you might hurt yourself, a fixed notice
+goes above all of it, pointing at your local emergency number, someone you trust, and a
+crisis line. The model is asked to watch for that, and what you type with `--what` is
+also checked on your machine for the plain ways of saying it, so the notice does not
+hang on one answer from the model. `--what` is redacted with the transcript before
+anything is sent.
+
 ### What gets sent
 
-Before `analyze`, `flags`, or `draft` builds a request, the transcript is redacted on your machine.
+Before `analyze`, `flags`, `draft`, or `comfort` builds a request, the transcript is redacted on your machine.
 Both names become `[OWNER]` and `[MATCH]`; phone numbers, long account-like numbers,
 email addresses, street addresses, links, and social handles become numbered
 placeholders. The same detail always gets the same placeholder, so the model can still
@@ -506,7 +566,8 @@ Your chat history is about as private as data gets, and this repo is built aroun
 - `.gitignore` blocks `data/`, `transcripts/`, `conversations/`, `*.db`, and `.env`
   before you can make a mistake with them. The only conversations in this repository are
   `examples/sample_chat.txt`, `examples/sample_chat_later.txt`,
-  `examples/pressure_chat.txt`, and `examples/details_chat.txt`, all fictional.
+  `examples/pressure_chat.txt`, `examples/details_chat.txt`, and
+  `examples/faded_chat.txt`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
 - `confidant add`, `list`, `show`, `remove`, `profile`, `timeline`, and `nudge` never make a network call either. They
   keep people and conversations in one SQLite file at `~/.confidant/confidant.db`, or
@@ -516,8 +577,8 @@ Your chat history is about as private as data gets, and this repo is built aroun
   instead of leaving them recoverable in the file. It holds the conversations as you
   wrote them — redaction happens on the way to the API, not on the way to disk — and the
   reads `profile --update` saves, with names put back, which `remove` overwrites too.
-- `confidant analyze`, `confidant flags`, `confidant draft`, and `confidant profile
-  --update` send the redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
+- `confidant analyze`, `confidant flags`, `confidant draft`, `confidant comfort`, and
+  `confidant profile --update` send the redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
   Confidant's own instructions are marked for prompt caching, so a `profile --update`
   that reads several conversations pays full price for them once; the transcript is
@@ -530,7 +591,7 @@ from:
 
 | Variable | Default | |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, `draft`, and `profile --update`; nothing else uses it. |
+| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, `draft`, `comfort`, and `profile --update`; nothing else uses it. |
 | `CONFIDANT_MODEL` | `claude-opus-5` | |
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
