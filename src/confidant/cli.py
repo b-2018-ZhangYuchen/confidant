@@ -41,6 +41,7 @@ from confidant.progress import StatusLine
 from confidant.prompts.common import render_conversation
 from confidant.prompts.draft import TONES
 from confidant.redaction import redact
+from confidant.resources import REGION_ENV, REGIONS, using_region
 from confidant.safety import Escalation
 from confidant.store import (
     ReadingKind,
@@ -418,6 +419,7 @@ examples:
   confidant profile Robin --update
   confidant timeline Robin
   confidant nudge
+  confidant comfort examples/faded_chat.txt --region GB
 
 stats and redact never touch the network, and neither do add, list, show,
 remove, profile, timeline, and nudge, which keep people and their conversations
@@ -433,6 +435,8 @@ environment (or put these in .env):
   CONFIDANT_MODEL       default {DEFAULT_MODEL}
   CONFIDANT_EFFORT      low, medium, high (default), xhigh, or max
   CONFIDANT_MAX_TOKENS  default {DEFAULT_MAX_TOKENS}; raise it if a report is cut off
+  CONFIDANT_REGION      your country ({", ".join(REGIONS)}), so safety notices can
+                        list emergency and support numbers; same as --region
 
 exit codes:
   0    success
@@ -678,6 +682,20 @@ def _build_parser() -> argparse.ArgumentParser:
             "'2026-03-14' or '2026-03-14 18:00'."
         ),
     )
+
+    # Every command that can open with a safety notice. An unknown region is not an
+    # error: someone at a bad moment who mistypes their country still gets the notice,
+    # with a line saying there are no numbers on file for it.
+    for name in ("flags", "draft", "comfort", "profile", "timeline", "nudge"):
+        subcommands.choices[name].add_argument(
+            "--region",
+            metavar="COUNTRY",
+            help=(
+                "Where you are, e.g. US, GB, or 'new zealand', so a safety notice can list "
+                f"emergency and support numbers (default: ${REGION_ENV}). Known: "
+                f"{', '.join(REGIONS)}."
+            ),
+        )
     return parser
 
 
@@ -715,7 +733,11 @@ def _api_error(exc: anthropic.APIError, settings: Settings) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    with using_region(getattr(args, "region", None)):
+        return _dispatch(args)
 
+
+def _dispatch(args: argparse.Namespace) -> int:
     if args.command in _STORE_COMMANDS:
         return _run_store_command(args)
     if args.command == "profile":

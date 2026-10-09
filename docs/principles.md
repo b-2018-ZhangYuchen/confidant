@@ -53,7 +53,9 @@ before anything the model wrote. The model decides whether something is dangerou
 the owner is told to do about it is fixed text, written in advance and reviewed in
 `src/confidant/safety.py`, so it cannot vary with sampling or be softened by a mild
 summary. It does not depend on confidence: a short transcript with a threat in it still
-has a threat in it.
+has a threat in it. The phone numbers under it come from a short reviewed table in
+`src/confidant/resources.py`, for the region the owner names; the region is never
+guessed, because a confident wrong number is worse than the general advice.
 
 ### 8. The data stays put
 

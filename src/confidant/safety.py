@@ -13,10 +13,10 @@ all. It is fixed text, written in advance and reviewed here as prose, for three 
   transcript with a threat in it, so a low-confidence scan escalates exactly like a
   high-confidence one.
 
-No phone numbers or named services yet. Those depend on where the owner is, and
-routing to the right one is its own piece of work with its own tests (see ROADMAP.md).
-Until then the notice points at the one resource that is right everywhere: someone the
-owner already trusts, and the local emergency number when there is a physical risk.
+The steps themselves name no phone numbers or services: they are the advice that is
+right everywhere, someone the owner already trusts and the local emergency number when
+there is a physical risk. The numbers depend on where the owner is, so they are routed
+separately by :mod:`confidant.resources` and printed under the steps.
 """
 
 from __future__ import annotations
@@ -27,6 +27,8 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+
+from confidant.resources import Kind, Routing, route
 
 if TYPE_CHECKING:
     from confidant.analysis.flags import Flag
@@ -152,6 +154,10 @@ class Escalation(BaseModel):
     physical_risk: bool = Field(
         description="Whether any of it could become a risk to physical safety."
     )
+    routing: Routing | None = Field(
+        default=None,
+        description="Emergency and support numbers for the owner's region, or how to get them.",
+    )
 
     def to_text(self) -> str:
         # Wrapped, unlike the rest of the report: this is the block that has to be read in
@@ -164,7 +170,18 @@ class Escalation(BaseModel):
             lines.append(
                 textwrap.fill(step, _WIDTH, initial_indent="   - ", subsequent_indent="     ")
             )
+        if self.routing is not None:
+            lines.append("")
+            lines += [_fill(line) for line in self.routing.heading_and_numbers()]
+            if self.routing.note:
+                lines.append(_fill(self.routing.note))
         return "\n".join(lines)
+
+
+def _fill(text: str, indent: str = "   ") -> str:
+    # Continuation lines line up with the text, wherever it starts.
+    hang = indent + " " * (len(text) - len(text.lstrip()))
+    return textwrap.fill(text.lstrip(), _WIDTH, initial_indent=hang, subsequent_indent=hang)
 
 
 def _join(names: list[str]) -> str:
@@ -199,11 +216,20 @@ def escalate(flags: Iterable[Flag], match_name: str) -> Escalation | None:
     # once, where the most serious category put it.
     steps = [STEPS[key] for key in dict.fromkeys(keys)]
 
+    # Money pressure alone routes nowhere: an abuse or crisis line is the wrong door
+    # for a scam, and the steps already cover it.
+    kinds: set[Kind] = set()
+    if physical:
+        kinds.add("abuse")
+    if "threat" in fired:
+        kinds.add("crisis")
+
     return Escalation(
         categories=categories,
         headline=headline,
         steps=steps,
         physical_risk=physical,
+        routing=route(kinds),
     )
 
 
@@ -253,4 +279,5 @@ def support_notice() -> Escalation:
         headline=SUPPORT_HEADLINE,
         steps=list(SUPPORT_STEPS),
         physical_risk=True,
+        routing=route({"crisis"}),
     )

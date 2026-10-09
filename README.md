@@ -38,7 +38,7 @@ Early and honest about it. Working today:
 | ✅ | Keep-in-touch suggestions — `confidant nudge` says who is worth a message today, and why, and never pushes you towards someone you are waiting on or anyone a danger flag was found with |
 | ✅ | Drafting your next message in a tone you pick, each draft tied to the line it answers — and never sent for you |
 | ✅ | Comfort mode for when it goes badly — what the messages show and what they cannot, with praise quoted from your own messages and a fixed support notice first if you may be at risk |
-| 🔜 | Crisis resources for where you are |
+| ✅ | Crisis resources for where you are — `--region` lists the emergency number and the right support lines under any safety notice |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -171,12 +171,41 @@ begins:
    - You do not owe them a reply, and you do not have to decide anything right away.
      Talk it through with someone you trust first.
    - If you ever feel physically unsafe, call your local emergency number.
+
+   To list emergency and support numbers here, pass --region with your country (US, GB,
+   AU, ...) or set CONFIDANT_REGION. findahelpline.com lists free support lines in most
+   countries.
 ```
 
-With `--json` the same notice is in the `escalation` field. If a flag filed as danger is
-dropped because its quotes could not be found, the report says so rather than going
-quiet about it. Region-specific crisis resources are on the roadmap; until then the
-notice points only at what is right everywhere.
+The steps are what is right everywhere. The numbers depend on where you are, so tell
+Confidant with `--region` (or `CONFIDANT_REGION`, to set it once) and the notice lists
+them under the steps. With `--region GB`, the same notice ends:
+
+```
+   - If you ever feel physically unsafe, call your local emergency number.
+
+   In the United Kingdom:
+     Emergency services: call 999.
+     National Domestic Abuse Helpline (England): call 0808 2000 247.
+```
+
+What is listed depends on what was found. Danger that could become physical gets the
+emergency number and a domestic-abuse line; a threat also gets a crisis line, since the
+threat may be to self-harm and the notice already says you can point them to help; and
+pressure around money on its own lists nothing, because neither line is the right door
+for a scam. Numbers are on file for Australia (`AU`), Canada (`CA`), France (`FR`),
+Germany (`DE`), India (`IN`), Ireland (`IE`), the Netherlands (`NL`), New Zealand
+(`NZ`), the United Kingdom (`GB` or `UK`), and the United States (`US`), and country
+names work too. They are national, free, round-the-clock services, kept in
+[`src/confidant/resources.py`](src/confidant/resources.py); where a country has no
+national line of the kind needed, the notice says so and points at findahelpline.com
+rather than filling the gap with a regional one. The region is never guessed from your
+locale, since a confident wrong number is worse than none, and a region with no numbers
+on file is not an error: the notice is printed in full either way.
+
+With `--json` the same notice is in the `escalation` field, with the numbers under
+`routing`. If a flag filed as danger is dropped because its quotes could not be found,
+the report says so rather than going quiet about it.
 
 ### Keeping track of people
 
@@ -371,6 +400,10 @@ Casey: not suggested. A danger-tier red flag was found with them.
    - You do not owe them a reply, and you do not have to decide anything right away.
      Talk it through with someone you trust first.
    - If you ever feel physically unsafe, call your local emergency number.
+
+   To list emergency and support numbers here, pass --region with your country (US, GB,
+   AU, ...) or set CONFIDANT_REGION. findahelpline.com lists free support lines in most
+   countries.
   - Confidant does not suggest getting in touch with someone a red-flag check found danger-tier behavior from. Whether to is yours to decide, ideally with someone you trust.
 
 Worth a message today
@@ -502,7 +535,8 @@ If the chat shows threats, coercion, pressure, isolation, or tracking, the read 
 plainly, and for someone saved with a danger flag the safety notice goes first, as
 everywhere else. If anything you wrote suggests you might hurt yourself, a fixed notice
 goes above all of it, pointing at your local emergency number, someone you trust, and a
-crisis line. The model is asked to watch for that, and what you type with `--what` is
+crisis line, with the crisis lines for where you are listed by name when `--region` or
+`CONFIDANT_REGION` is set. The model is asked to watch for that, and what you type with `--what` is
 also checked on your machine for the plain ways of saying it, so the notice does not
 hang on one answer from the model. `--what` is redacted with the transcript before
 anything is sent.
@@ -596,6 +630,7 @@ from:
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
 | `CONFIDANT_DB` | `~/.confidant/confidant.db` | Where `add`, `list`, `show`, `remove`, `profile`, `timeline`, and `nudge` keep people, conversations, and reads. |
+| `CONFIDANT_REGION` | — | Your country (`US`, `GB`, `AU`, ...), so safety notices list emergency and support numbers. Same as `--region`, which wins when both are given. Commands that never call Claude do not read `.env`, so set this one in your shell to have it everywhere. |
 
 `confidant --help` lists the same, with examples, and every subcommand's `--help` shows
 the transcript format. Every failure is one sentence on stderr, never a traceback, and

@@ -148,7 +148,7 @@ def test_the_copy_follows_the_principles():
     # No diagnosis and no verdicts on the person, not even in the safety notice.
     for word in ("narcissist", "abuser", "toxic", "manipulative", "psycho", "controlling"):
         assert word not in text
-    # No specific hotline yet: routing to the right one depends on where the owner is.
+    # The steps are right everywhere; numbers depend on the region and live in resources.py.
     assert not any(ch.isdigit() for ch in text)
 
 

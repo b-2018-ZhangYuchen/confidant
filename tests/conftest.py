@@ -29,6 +29,13 @@ def no_network(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect_ex", refuse)
 
 
+@pytest.fixture(autouse=True)
+def no_region(monkeypatch):
+    # A developer's own CONFIDANT_REGION would otherwise change every safety notice the
+    # suite compares against.
+    monkeypatch.delenv("CONFIDANT_REGION", raising=False)
+
+
 @pytest.fixture
 def recording():
     """Load a recording by name, e.g. ``recording("flags_pressure")``."""
