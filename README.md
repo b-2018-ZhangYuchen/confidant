@@ -39,6 +39,7 @@ Early and honest about it. Working today:
 | ✅ | Drafting your next message in a tone you pick, each draft tied to the line it answers — and never sent for you |
 | ✅ | Comfort mode for when it goes badly — what the messages show and what they cannot, with praise quoted from your own messages and a fixed support notice first if you may be at risk |
 | ✅ | Crisis resources for where you are — `--region` lists the emergency number and the right support lines under any safety notice |
+| ✅ | An eval set — fictional transcripts with the findings a good read should contain, scored locally so prompt changes can be measured |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -600,8 +601,8 @@ Your chat history is about as private as data gets, and this repo is built aroun
 - `.gitignore` blocks `data/`, `transcripts/`, `conversations/`, `*.db`, and `.env`
   before you can make a mistake with them. The only conversations in this repository are
   `examples/sample_chat.txt`, `examples/sample_chat_later.txt`,
-  `examples/pressure_chat.txt`, `examples/details_chat.txt`, and
-  `examples/faded_chat.txt`, all fictional.
+  `examples/pressure_chat.txt`, `examples/details_chat.txt`,
+  `examples/faded_chat.txt`, and the eval transcripts in `examples/eval/`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
 - `confidant add`, `list`, `show`, `remove`, `profile`, `timeline`, and `nudge` never make a network call either. They
   keep people and conversations in one SQLite file at `~/.confidant/confidant.db`, or
@@ -678,6 +679,57 @@ The recordings in the repository today are hand-written — marked `"provenance"
 the shapes that matter, including a refusal and a misquote that grounding has to catch.
 A live recording cannot be re-stamped: its response answers the old prompt, so the only
 honest fix is to record it again.
+
+### Evals
+
+The recordings test that Confidant handles an answer correctly; they cannot say whether
+the answer was any good. The eval set in `examples/eval/` asks that question. Each case is
+a fictional transcript and a TOML file of what a good read of it contains: lines it
+should quote, things it should say, words it has no reason to use, the confidence it
+should land on, and for the red-flag check, which flags should and should not appear and
+whether the safety notice should open the report:
+
+```toml
+about = "Short replies, but every one of them makes or keeps a plan."
+transcript = "terse_texter.txt"
+
+[analyze]
+[[analyze.cite]]
+why = "quotes the plans they made and kept"
+any = ["booked a table at the back", "saturday then. I'll drive"]
+
+[flags]
+max_severity = "none"
+```
+
+Two checks run on every read without being written down: every quote must be something
+the other person actually wrote, and no diagnostic label may appear. Scoring is local and
+keyword-based, never a model grading a model, so today's score and tomorrow's measure the
+same thing. `check` validates the cases without calling anything:
+
+```bash
+python -m confidant.evals check
+```
+
+```
+investment_pitch        10 messages  analyze 3, flags 5
+                       A stranger steering towards a trading platform, the owner's savings, and secrecy.
+...
+
+9 cases, 17 reads, 77 checks. Nothing was sent.
+```
+
+`run` makes the live calls (it needs an API key) and prints each failure with what the
+read said instead. `--repeat N` runs everything N times, since sampling varies, and
+`--out` saves the scorecard with every report and a hash of each prompt, so two scores
+are only compared when they were made against known prompts:
+
+```bash
+python -m confidant.evals run --repeat 3 --out evals/latest.json
+```
+
+A refused or cut-off read fails all of its checks rather than being left out, because
+leaving it out would raise the score.
 
 ## License
 

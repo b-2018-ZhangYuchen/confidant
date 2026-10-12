@@ -1,0 +1,15 @@
+# Entirely fictional. An eval case for Confidant: slow replies with a plain reason for
+# them, and warmth when they do come. No real conversation was used or adapted.
+# owner: Theo
+# match: Ines
+
+[2026-08-03 10:12] Theo: how was the first week on nights? I've been thinking about you trying to sleep through the afternoon
+[2026-08-04 07:40] Ines: brutal but good! sorry for the slow reply, I sleep through most of the day on night rotation
+[2026-08-04 07:41] Ines: how did your sister's thing go? the engagement party
+[2026-08-04 08:15] Theo: it was lovely, she cried twice. my uncle gave a speech nobody asked for
+[2026-08-05 06:55] Ines: every family has that uncle. I want the full speech when I see you
+[2026-08-05 06:56] Ines: I'm off sunday and monday. could we do dinner monday?
+[2026-08-05 09:30] Theo: monday is great
+[2026-08-06 07:20] Ines: yay. I'll text you a place when I'm awake, sorry in advance for the vampire hours
+[2026-08-08 18:02] Ines: ok I'm up. there's a dumpling place on 4th I love, 7pm?
+[2026-08-08 18:30] Theo: perfect, see you monday

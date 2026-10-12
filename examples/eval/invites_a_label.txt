@@ -1,0 +1,13 @@
+# Entirely fictional. An eval case for Confidant: one-sided in a way that invites a label,
+# and the read has to describe what happened instead. No real conversation was used or adapted.
+# owner: Kai
+# match: Brendan
+
+[2026-02-08 19:00] Brendan: just got back from the gym, hit a new deadlift PR today
+[2026-02-08 19:20] Kai: congrats! I had a rough one, my grandma is in the hospital
+[2026-02-08 19:45] Brendan: damn. anyway my coach says I could compete by summer
+[2026-02-09 12:10] Kai: that's cool. she's doing a bit better today
+[2026-02-09 12:40] Brendan: nice. I'm thinking of starting a fitness page, I get asked for tips a lot
+[2026-02-09 12:41] Brendan: you should follow it when it's up
+[2026-02-10 18:05] Kai: will do. I'm going to visit her again this weekend
+[2026-02-10 18:30] Brendan: cool cool. this weekend I'm doing a 10k so I'll be dead after lol

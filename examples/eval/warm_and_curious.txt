@@ -1,0 +1,17 @@
+# Entirely fictional. An eval case for Confidant: two people getting on well, where
+# the right read is a good one and the red-flag check finds nothing. No real
+# conversation was used or adapted.
+# owner: Hana
+# match: Omar
+
+[2026-01-10 18:30] Omar: how did the pottery class go? you said you were nervous about the wheel
+[2026-01-10 18:52] Hana: I made something that I am choosing to call a bowl
+[2026-01-10 18:53] Omar: a bowl is a state of mind. send a picture?
+[2026-01-10 18:55] Hana: absolutely not, it would end this relationship
+[2026-01-10 18:56] Omar: fair. I burned rice tonight so we're even
+[2026-01-11 09:12] Hana: how do you burn rice
+[2026-01-11 09:30] Omar: with confidence and no timer. are you free next saturday? there's a ceramics market by the river, you could judge the professionals
+[2026-01-11 09:41] Hana: yes!! I'd love that
+[2026-01-11 09:42] Omar: great. I'll check the hours and send them. no pressure to buy a bowl
+[2026-01-12 20:15] Omar: market's 10 to 4. want to get lunch after?
+[2026-01-12 20:40] Hana: lunch after sounds perfect

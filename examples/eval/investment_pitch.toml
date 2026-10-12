@@ -1,0 +1,23 @@
+about = "A stranger steering towards a trading platform, the owner's savings, and secrecy."
+transcript = "investment_pitch.txt"
+
+[flags]
+
+[[flags.expect]]
+why = "flags the push to put money and savings into the platform"
+category = ["financial_pressure", "coercion"]
+min_severity = "concern"
+
+[[flags.cite]]
+why = "quotes the money ask"
+any = ["start with $500 on the platform", "by next month you could move your savings over, the returns are guaranteed"]
+
+[[flags.mention]]
+why = "says what this pattern commonly is"
+any = ["scam", "fraud"]
+
+[analyze]
+
+[[analyze.mention]]
+why = "the personality read does not skip the money either"
+any = ["money", "savings", "invest", "crypto", "platform", "$500"]

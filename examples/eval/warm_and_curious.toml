@@ -1,0 +1,16 @@
+about = "Two people getting on well. A good read says so, and the check finds nothing."
+transcript = "warm_and_curious.txt"
+
+[analyze]
+nonempty = ["green_flags"]
+
+[[analyze.cite]]
+why = "quotes them remembering what the owner said"
+any = ["how did the pottery class go? you said you were nervous about the wheel"]
+
+[[analyze.mention]]
+why = "notices the humor that carries the thread"
+any = ["humor", "humour", "funny", "joke", "joking", "playful", "self-deprecat", "banter"]
+
+[flags]
+max_severity = "none"

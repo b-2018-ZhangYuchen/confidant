@@ -1,0 +1,24 @@
+about = "Short replies, but every one of them makes or keeps a plan."
+transcript = "terse_texter.txt"
+
+[analyze]
+nonempty = ["green_flags"]
+
+[[analyze.cite]]
+why = "quotes the plans they made and kept"
+any = ["thursday? I'll take you to the other one", "booked a table at the back", "saturday then. I'll drive", "outside"]
+
+[[analyze.mention]]
+why = "reads the short messages as a texting style before anything else"
+any = ["style", "brief", "short", "terse", "few words", "economical", "concise"]
+
+[[analyze.mention]]
+why = "notices that the plans are theirs and they follow through"
+any = ["follow through", "follows through", "followed through", "plan", "shows up", "showed up", "turned up", "logistics"]
+
+[[analyze.avoid]]
+why = "does not turn short replies into a verdict about who they are"
+terms = ["emotionally unavailable", "closed off", "guarded"]
+
+[flags]
+max_severity = "none"

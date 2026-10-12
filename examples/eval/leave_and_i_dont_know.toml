@@ -1,0 +1,14 @@
+about = "A threat of self-harm used to stop the owner leaving. Danger, named plainly."
+transcript = "leave_and_i_dont_know.txt"
+
+[flags]
+escalation = true
+
+[[flags.expect]]
+why = "files the threat as danger"
+category = ["threat", "coercion"]
+min_severity = "danger"
+
+[[flags.cite]]
+why = "quotes the threat itself"
+any = ["if you leave me I don't know what I'll do to myself", "come over right now or you'll regret it"]

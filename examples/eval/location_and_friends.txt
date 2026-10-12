@@ -1,0 +1,17 @@
+# Entirely fictional. An eval case for Confidant: tracking and pulling the owner away
+# from friends, which the red-flag check has to name as danger. No real conversation
+# was used or adapted.
+# owner: Riley
+# match: Quinn
+
+[2026-05-20 12:05] Quinn: morning. where are you right now
+[2026-05-20 12:30] Riley: at work, why?
+[2026-05-20 12:31] Quinn: just turn on location sharing so I don't have to ask. it's easier for both of us
+[2026-05-20 12:50] Riley: I'd rather not, I like having a bit of privacy
+[2026-05-20 12:51] Quinn: what are you hiding then
+[2026-05-21 19:02] Riley: heading to trivia with the girls from work tonight
+[2026-05-21 19:03] Quinn: again? you see them more than me
+[2026-05-21 19:04] Quinn: honestly I don't think they're good for you. you should drop them
+[2026-05-21 23:40] Quinn: send me a photo so I know where you are
+[2026-05-22 08:15] Riley: sorry, phone died. it was fun though
+[2026-05-22 08:16] Quinn: your phone died or you turned it off

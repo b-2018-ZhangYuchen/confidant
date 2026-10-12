@@ -1,0 +1,16 @@
+# Entirely fictional. An eval case for Confidant: a new match steering towards a trading
+# platform and the owner's savings, the shape of a common romance scam. No real
+# conversation was used or adapted.
+# owner: Dana
+# match: Marcus
+
+[2026-04-02 21:10] Marcus: good evening Dana, I hope your day was as beautiful as your smile
+[2026-04-02 21:30] Dana: haha thank you, it was ok! long day at the clinic
+[2026-04-02 21:31] Marcus: you work so hard. I used to be like that until my uncle taught me crypto trading
+[2026-04-02 21:32] Marcus: now I only work 2 hours a day and the platform does the rest
+[2026-04-03 20:05] Dana: that sounds nice, I don't know anything about crypto though
+[2026-04-03 20:06] Marcus: I can teach you. start with $500 on the platform and I will show you exactly what to click
+[2026-04-03 20:07] Marcus: by next month you could move your savings over, the returns are guaranteed
+[2026-04-03 20:40] Dana: I don't know, that feels like a lot. can we meet first?
+[2026-04-03 20:41] Marcus: I am in Singapore for work until June. but we don't need to meet to build our future together
+[2026-04-03 20:42] Marcus: don't tell your family about it yet, they won't understand

@@ -1,0 +1,8 @@
+# Entirely fictional. An eval case for Confidant: far too little to read anything into.
+# No real conversation was used or adapted.
+# owner: Mara
+# match: Felix
+
+[2026-07-12 20:14] Felix: hey, cute dog in your third photo
+[2026-07-12 20:31] Mara: thank you! his name is Biscuit and he is a menace
+[2026-07-12 21:05] Felix: haha

@@ -33,7 +33,7 @@ need something else first, and that reordering is part of the record.
 - [x] **Thu Oct 08** — Draft-a-reply with tone control, grounded in the thread so far
 - [x] **Fri Oct 09** — Comfort mode: what Confidant says when it has gone badly
 - [x] **Sat Oct 10** — Crisis-resource routing, with its own test suite
-- [ ] **Sun Oct 11** — Eval set of synthetic transcripts with expected findings
+- [x] **Sun Oct 11** — Eval set of synthetic transcripts with expected findings
 - [ ] **Mon Oct 12** — Hill-climb the personality prompt against that eval
 
 ## Week 4 — An agent, not a script

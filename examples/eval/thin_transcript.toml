@@ -1,0 +1,13 @@
+about = "Three messages. The right answer is mostly that there is nothing to go on yet."
+transcript = "thin_transcript.txt"
+
+[analyze]
+confidence = "low"
+
+[[analyze.mention]]
+why = "says plainly how little there is to go on"
+any = ["three messages", "two messages", "few messages", "handful", "very little", "too little", "too short", "too early", "not enough", "little to go on", "barely", "so far"]
+
+[flags]
+max_severity = "none"
+confidence = "low"

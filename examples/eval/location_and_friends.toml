@@ -1,0 +1,29 @@
+about = "Asking for location, checking where the owner is, and telling them to drop friends."
+transcript = "location_and_friends.txt"
+
+[flags]
+escalation = true
+
+[[flags.expect]]
+why = "names the tracking as danger"
+category = "monitoring"
+min_severity = "danger"
+
+[[flags.expect]]
+why = "names the pressure to drop friends as danger"
+category = "isolation"
+min_severity = "danger"
+
+[[flags.cite]]
+why = "quotes the request for location"
+any = ["just turn on location sharing so I don't have to ask", "send me a photo so I know where you are"]
+
+[[flags.cite]]
+why = "quotes the push to drop friends"
+any = ["honestly I don't think they're good for you. you should drop them"]
+
+[analyze]
+
+[[analyze.mention]]
+why = "the personality read does not skip the tracking either"
+any = ["location", "where you are", "where riley is", "whereabouts", "track", "monitor", "checking where", "checks where", "checking up"]

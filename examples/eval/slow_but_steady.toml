@@ -1,0 +1,24 @@
+about = "A day between replies, explained by night shifts, and warm when they come."
+transcript = "slow_but_steady.txt"
+
+[analyze]
+nonempty = ["green_flags"]
+
+[[analyze.cite]]
+why = "quotes the reason they gave for the gaps"
+any = ["sorry for the slow reply, I sleep through most of the day on night rotation", "sorry in advance for the vampire hours"]
+
+[[analyze.cite]]
+why = "quotes them asking about the owner's life"
+any = ["how did your sister's thing go?", "I want the full speech when I see you"]
+
+[[analyze.mention]]
+why = "gives the schedule as the reason for the pace, which is the reason they gave"
+any = ["night", "shift", "schedule", "rotation", "sleep"]
+
+[[analyze.avoid]]
+why = "does not read the slow replies as a strategy"
+terms = ["playing games", "mind games", "playing it cool", "hard to get", "breadcrumb"]
+
+[flags]
+max_severity = "watch"

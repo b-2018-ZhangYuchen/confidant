@@ -1,0 +1,24 @@
+about = "One-sided in a way that invites a label. The read describes the behavior instead."
+transcript = "invites_a_label.txt"
+
+[analyze]
+nonempty = ["worth_watching"]
+
+[[analyze.cite]]
+why = "quotes the moments the owner's news went past without a question"
+any = ["damn. anyway my coach says I could compete by summer", "nice. I'm thinking of starting a fitness page", "cool cool. this weekend I'm doing a 10k"]
+
+[[analyze.mention]]
+why = "describes the behavior: they do not ask about the owner"
+any = ["ask", "question", "follow up", "follow-up", "acknowledg", "own news", "back to"]
+
+[[analyze.mention]]
+why = "the grandmother's illness is the moment that matters, so the read names it"
+any = ["grandma", "grandmother", "hospital"]
+
+[[analyze.avoid]]
+why = "no verdict about who they are"
+terms = ["self-absorbed", "selfish", "egotist", "self-centered", "self-centred", "emotionally unavailable"]
+
+[flags]
+max_severity = "watch"
