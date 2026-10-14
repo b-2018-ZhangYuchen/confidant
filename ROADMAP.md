@@ -34,7 +34,7 @@ need something else first, and that reordering is part of the record.
 - [x] **Fri Oct 09** — Comfort mode: what Confidant says when it has gone badly
 - [x] **Sat Oct 10** — Crisis-resource routing, with its own test suite
 - [x] **Sun Oct 11** — Eval set of synthetic transcripts with expected findings
-- [ ] **Mon Oct 12** — Hill-climb the personality prompt against that eval
+- [x] **Mon Oct 12** — `evals compare`: which checks a prompt change won and lost, so a hill-climb has a step to repeat
 
 ## Week 4 — An agent, not a script
 
@@ -45,6 +45,13 @@ need something else first, and that reordering is part of the record.
 - [ ] **Sat Oct 17** — Web UI: transcript upload and report view
 - [ ] **Sun Oct 18** — Web UI: the people list and the nudge digest
 - [ ] **Mon Oct 19** — Packaging, `pipx install confidant`, and a v0.2 release
+
+## Needs a live run
+
+The daily build has no API key, so it cannot make these calls; they wait for a machine
+that can.
+
+- [ ] **Needs a key** — Hill-climb the personality prompt against the eval: baseline, change, `compare`, keep or revert
 
 ## Later
 

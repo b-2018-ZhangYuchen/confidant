@@ -40,6 +40,7 @@ Early and honest about it. Working today:
 | ✅ | Comfort mode for when it goes badly — what the messages show and what they cannot, with praise quoted from your own messages and a fixed support notice first if you may be at risk |
 | ✅ | Crisis resources for where you are — `--region` lists the emergency number and the right support lines under any safety notice |
 | ✅ | An eval set — fictional transcripts with the findings a good read should contain, scored locally so prompt changes can be measured |
+| ✅ | `evals compare` — which checks a prompt change won and lost, with guard checks that fail the comparison whatever the score |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -730,6 +731,42 @@ python -m confidant.evals run --repeat 3 --out evals/latest.json
 
 A refused or cut-off read fails all of its checks rather than being left out, because
 leaving it out would raise the score.
+
+`compare` is the step a prompt hill-climb repeats: save a baseline, change a prompt, run
+again, and ask which checks the change won and lost. It makes no API call. Checks are
+matched by case and name, scored as pass rates so runs of different `--repeat` line up,
+and a refused read counts as failing every check it would have made:
+
+```bash
+python -m confidant.evals run --repeat 3 --out evals/baseline.json
+# edit src/confidant/prompts/personality.py
+python -m confidant.evals run --repeat 3 --out evals/latest.json
+python -m confidant.evals compare evals/baseline.json evals/latest.json
+```
+
+On a one-case set from the test suite, run twice each side, it prints:
+
+```
+Prompts changed: analyze
+Runs: 2 before, 2 after; claude-opus-5 at high effort.
+
+Lost
+  case  analyze  confidence is medium  2/2 -> 1/2  ~
+      now: it was high
+
+Gained
+  case  analyze  mentions the weekend  0/2 -> 2/2
+
+~ 1 of 2 changes moved by a single run, which sampling alone can do. --repeat on both sides tells them apart.
+Score on the 5 checks both made: 80% -> 90% (+10 points).
+```
+
+Some checks are guards rather than measures: `avoid` lists, quotes the match never
+wrote, diagnostic labels, and whether the safety notice opens the report. A change that
+loses any of them is marked `GUARD`, listed first, and makes `compare` exit 1, whatever
+the score did, because a prompt that finds more and starts using labels is worse, not
+better. Two scorecards made with a different model or effort are refused, since that
+compares more than the prompts.
 
 ## License
 

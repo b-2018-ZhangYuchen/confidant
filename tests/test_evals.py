@@ -401,3 +401,209 @@ def test_repeat_and_the_scorecard(tmp_path, monkeypatch):
 def test_an_empty_scorecard_renders():
     card = Scorecard([], model="m", effort="high")
     assert card.to_text().endswith("Score: 0/0 checks (0%) across 0 cases, m at high effort.")
+
+
+# -- comparing -------------------------------------------------------------------------
+
+
+def scorecard(tmp_path, monkeypatch, *reports, system="system", body=None, name="card"):
+    """Run a case against fixed reports and save the scorecard, as `run --out` would."""
+    reads = iter(reports)
+    monkeypatch.setitem(evals.ANALYSES, "analyze", (lambda *a, **k: next(reads), system))
+    body = (
+        body
+        or """
+[analyze]
+confidence = "medium"
+
+[[analyze.mention]]
+why = "mentions the weekend"
+any = ["weekend"]
+
+[[analyze.avoid]]
+why = "no verdict on who Robin is"
+terms = ["needy"]
+"""
+    )
+    case = load_case(write_case(tmp_path, body))
+    card = run_cases([case], client=object(), analyses=["analyze"], repeat=len(reports))
+    path = tmp_path / f"{name}.json"
+    path.write_text(card.to_json(), encoding="utf-8")
+    return path
+
+
+def test_checks_carry_their_kind(tmp_path):
+    case = load_case(write_case(tmp_path, "[analyze]\nconfidence = 'medium'\n"))
+    kinds = [c.kind for c in score_read(case, "analyze", report())]
+    assert kinds == ["confidence", "grounding", "labels"]
+
+
+def test_compare_names_what_was_won_and_lost(tmp_path, monkeypatch, capsys):
+    before = scorecard(tmp_path, monkeypatch, report(), report(), name="before")
+    weekend = "Robin asks about the weekend."
+    after = scorecard(
+        tmp_path,
+        monkeypatch,
+        report(communication_style=weekend, confidence="high"),
+        report(communication_style=weekend),
+        system="a better system",
+        name="after",
+    )
+    result = evals.compare_scorecards(evals.load_scorecard(before), evals.load_scorecard(after))
+    assert result.prompts_changed == ["analyze"]
+    assert [(c.name, c.before, c.after) for c in result.gained] == [
+        ("mentions the weekend", (0, 2), (2, 2))
+    ]
+    assert [(c.name, c.before, c.after, c.one_run) for c in result.lost] == [
+        ("confidence is medium", (2, 2), (1, 2), True)
+    ]
+    assert result.shared == 5 and not result.guards_lost
+
+    assert main(["compare", str(before), str(after)]) == 0
+    out = capsys.readouterr().out
+    assert "Prompts changed: analyze" in out
+    assert "confidence is medium  2/2 -> 1/2  ~" in out
+    assert "now: it was high" in out
+    assert "mentions the weekend  0/2 -> 2/2\n" in out
+    assert "~ 1 of 2 changes moved by a single run" in out
+    assert "Score on the 5 checks both made: 80% -> 90% (+10 points)." in out
+    # Lost is listed before gained: it is what to read first.
+    assert out.index("Lost") < out.index("Gained")
+
+
+def test_a_lost_guard_fails_the_comparison_whatever_the_score(tmp_path, monkeypatch, capsys):
+    before = scorecard(tmp_path, monkeypatch, report(), name="before")
+    after = scorecard(
+        tmp_path,
+        monkeypatch,
+        report(
+            communication_style="The weekend again. A bit needy, and avoidant too.",
+        ),
+        system="worse",
+        name="after",
+    )
+    result = evals.compare_scorecards(evals.load_scorecard(before), evals.load_scorecard(after))
+    assert result.rate_after > result.rate_before - 0.5
+    assert {c.name for c in result.guards_lost} == {
+        "no verdict on who Robin is",
+        "no diagnostic labels",
+    }
+    assert main(["compare", str(before), str(after)]) == 1
+    out = capsys.readouterr().out
+    assert "  GUARD case  analyze  no diagnostic labels  1/1 -> 0/1  ~" in out
+    assert "2 guard checks lost." in out
+
+
+def test_unchanged_prompts_mean_the_difference_is_sampling(tmp_path, monkeypatch, capsys):
+    before = scorecard(tmp_path, monkeypatch, report(), name="before")
+    after = scorecard(tmp_path, monkeypatch, report(confidence="low"), name="after")
+    assert main(["compare", str(before), str(after)]) == 0
+    out = capsys.readouterr().out
+    assert "Prompts changed: none" in out
+    assert "every difference below is sampling" in out
+
+
+def test_identical_scorecards_change_nothing(tmp_path, monkeypatch, capsys):
+    card = scorecard(tmp_path, monkeypatch, report())
+    assert main(["compare", str(card), str(card)]) == 0
+    out = capsys.readouterr().out
+    assert "No check changed." in out
+    assert "80% -> 80% (+0 points)" in out
+
+
+def test_a_refused_read_counts_as_failing_every_check(tmp_path, monkeypatch):
+    before = scorecard(tmp_path, monkeypatch, report(), name="before")
+
+    def refuse(*args, **kwargs):
+        raise evals.ModelRefusal(None, "declined to read this one")
+
+    monkeypatch.setitem(evals.ANALYSES, "analyze", (refuse, "refused"))
+    case = load_case(write_case(tmp_path, "[analyze]\nconfidence = 'medium'\n"))
+    after = tmp_path / "after.json"
+    after.write_text(run_cases([case], client=object(), analyses=["analyze"]).to_json())
+
+    result = evals.compare_scorecards(evals.load_scorecard(before), evals.load_scorecard(after))
+    # The refusal is not a check of its own; it is a failed run of every check the other
+    # side's read made, the ones only the before case file asked for included.
+    assert {c.name for c in result.lost} == {
+        "confidence is medium",
+        "no verdict on who Robin is",
+        "every claim quotes the match",
+        "no diagnostic labels",
+    }
+    assert all("declined" in c.detail for c in result.lost)
+    assert (result.rate_after, result.unmatched) == (0.0, 0)
+
+
+def test_different_repeats_are_compared_as_rates(tmp_path, monkeypatch):
+    before = scorecard(tmp_path, monkeypatch, report(), report(confidence="high"), name="b")
+    after = scorecard(tmp_path, monkeypatch, report(), name="a")
+    result = evals.compare_scorecards(evals.load_scorecard(before), evals.load_scorecard(after))
+    ((change,),) = [result.gained]
+    assert (change.before, change.after, change.one_run) == ((1, 2), (1, 1), True)
+
+
+def test_scorecards_from_different_models_are_not_compared(tmp_path, monkeypatch, capsys):
+    before = scorecard(tmp_path, monkeypatch, report(), name="before")
+    data = json.loads(before.read_text())
+    data["effort"] = "low"
+    after = tmp_path / "after.json"
+    after.write_text(json.dumps(data))
+    assert main(["compare", str(before), str(after)]) == 2
+    assert "different efforts" in capsys.readouterr().err
+
+
+def test_older_scorecards_without_kinds_still_compare(tmp_path, monkeypatch):
+    before = scorecard(tmp_path, monkeypatch, report(), name="before")
+    after = scorecard(
+        tmp_path, monkeypatch, report(headline="Robin seems narcissistic."), name="after"
+    )
+    stripped = []
+    for path in (before, after):
+        data = json.loads(path.read_text())
+        for read in data["reads"]:
+            for check in read["checks"]:
+                del check["kind"]
+        stripped.append(data)
+    result = evals.compare_scorecards(*stripped)
+    # The fixed names are recovered; the case author's own avoid check cannot be.
+    assert [c.name for c in result.guards_lost] == ["no diagnostic labels"]
+
+
+def test_two_checks_with_the_same_name_stay_apart(tmp_path, monkeypatch):
+    body = """
+[analyze]
+[[analyze.mention]]
+why = "says something"
+any = ["coffee cart"]
+
+[[analyze.mention]]
+why = "says something"
+any = ["presentation"]
+"""
+    before = scorecard(tmp_path, monkeypatch, report(), body=body, name="before")
+    after = scorecard(
+        tmp_path,
+        monkeypatch,
+        report(communication_style="Mentions the presentation."),
+        body=body,
+        name="after",
+    )
+    result = evals.compare_scorecards(evals.load_scorecard(before), evals.load_scorecard(after))
+    assert len(result.gained) == 1 and not result.lost
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        (None, "No scorecard at"),
+        ("not json", "is not JSON"),
+        ('{"model": "m"}', "is not a scorecard"),
+    ],
+)
+def test_a_bad_scorecard_is_refused(tmp_path, capsys, content, message):
+    path = tmp_path / "card.json"
+    if content is not None:
+        path.write_text(content)
+    assert main(["compare", str(path), str(path)]) == 2
+    assert message in capsys.readouterr().err

@@ -36,7 +36,8 @@ so the check there is that grounding had nothing to throw away.
 
 Running the set calls the model (``python -m confidant.evals run``); loading and
 validating it does not (``check``), and neither does scoring, which is what the tests
-exercise.
+exercise. Nor does ``compare``, which reads two saved scorecards and says which checks a
+prompt change won and lost: the step a hill-climb repeats.
 """
 
 from __future__ import annotations
@@ -71,12 +72,17 @@ __all__ = [
     "DEFAULT_CASES",
     "DIAGNOSTIC_TERMS",
     "Case",
+    "CheckChange",
     "CheckResult",
+    "Comparison",
     "EvalError",
+    "GUARD_KINDS",
     "ReadResult",
     "Scorecard",
     "load_case",
+    "compare_scorecards",
     "load_cases",
+    "load_scorecard",
     "run_cases",
     "score_read",
 ]
@@ -342,6 +348,9 @@ class CheckResult:
     name: str
     passed: bool
     detail: str = ""
+    # What sort of check this is (cite, mention, avoid, labels, ...), so a comparison can
+    # tell a line the principles draw from a measure of how good a read is.
+    kind: str = ""
 
 
 @dataclass(slots=True)
@@ -412,29 +421,39 @@ def score_read(case: Case, analysis: str, report: BaseModel) -> list[CheckResult
                 f"confidence is {' or '.join(section.confidence)}",
                 got in section.confidence,
                 f"it was {got}",
+                kind="confidence",
             )
         )
 
     for check in section.cite:
         hit = any(_cited(t, quotes) for t in check.terms)
-        checks.append(CheckResult(check.why, hit, "" if hit else "none of those lines is quoted"))
+        checks.append(
+            CheckResult(check.why, hit, "" if hit else "none of those lines is quoted", "cite")
+        )
 
     for check in section.mention:
         text = _fold("\n".join(_prose(data, only=check.field))) if check.field else prose
         hit = _found(check.terms, text)
         where = f" in {check.field}" if check.field else ""
         listed = ", ".join(f'"{t}"' for t in check.terms)
-        checks.append(CheckResult(check.why, bool(hit), "" if hit else f"no {listed}{where}"))
+        checks.append(
+            CheckResult(check.why, bool(hit), "" if hit else f"no {listed}{where}", "mention")
+        )
 
     for check in section.avoid:
         text = _fold("\n".join(_prose(data, only=check.field))) if check.field else prose
         hit = _found(check.terms, text)
         said = ", ".join(f'"{t}"' for t in hit)
-        checks.append(CheckResult(check.why, not hit, f"said {said}" if hit else ""))
+        checks.append(CheckResult(check.why, not hit, f"said {said}" if hit else "", "avoid"))
 
     for name in section.nonempty:
         checks.append(
-            CheckResult(f"{name.replace('_', ' ')} is not empty", bool(data[name]), "it was empty")
+            CheckResult(
+                f"{name.replace('_', ' ')} is not empty",
+                bool(data[name]),
+                "it was empty",
+                "nonempty",
+            )
         )
 
     if analysis == "flags":
@@ -449,7 +468,7 @@ def score_read(case: Case, analysis: str, report: BaseModel) -> list[CheckResult
             [f'not in the transcript: "{q}"' for q in missing]
             + [f'no evidence for "{n}"' for n in bare]
         )
-        checks.append(CheckResult("every claim quotes the match", not detail, detail))
+        checks.append(CheckResult("every claim quotes the match", not detail, detail, "grounding"))
     else:
         lost = data["discarded"]
         checks.append(
@@ -457,6 +476,7 @@ def score_read(case: Case, analysis: str, report: BaseModel) -> list[CheckResult
                 "no flag lost to a misquote",
                 not lost,
                 f"{lost} dropped by grounding" if lost else "",
+                kind="grounding",
             )
         )
     labels = _found(DIAGNOSTIC_TERMS, prose)
@@ -465,6 +485,7 @@ def score_read(case: Case, analysis: str, report: BaseModel) -> list[CheckResult
             "no diagnostic labels",
             not labels,
             "used " + ", ".join(f'"{t}"' for t in labels) if labels else "",
+            kind="labels",
         )
     )
     return checks
@@ -481,13 +502,13 @@ def _score_flags(section: Section, report: FlagReport) -> list[CheckResult]:
             if section.max_severity == "none"
             else f"nothing above {section.max_severity}"
         )
-        checks.append(CheckResult(name, not above, f"found {found}" if above else ""))
+        checks.append(CheckResult(name, not above, f"found {found}" if above else "", "severity"))
     for expected in section.expect:
         hit = any(
             f.category in expected.categories and f.tier >= TIERS[expected.min_severity]
             for f in report.flags
         )
-        checks.append(CheckResult(expected.why, hit, "" if hit else f"found {found}"))
+        checks.append(CheckResult(expected.why, hit, "" if hit else f"found {found}", "expect"))
     if section.escalation is not None:
         got = report.escalation is not None
         checks.append(
@@ -495,6 +516,7 @@ def _score_flags(section: Section, report: FlagReport) -> list[CheckResult]:
                 "opens with the safety notice" if section.escalation else "no safety notice",
                 got == section.escalation,
                 "it did" if got else "it did not",
+                kind="escalation",
             )
         )
     return checks
@@ -585,7 +607,8 @@ class Scorecard:
                     "analysis": r.analysis,
                     "error": r.error,
                     "checks": [
-                        {"name": c.name, "passed": c.passed, "detail": c.detail} for c in r.checks
+                        {"name": c.name, "kind": c.kind, "passed": c.passed, "detail": c.detail}
+                        for c in r.checks
                     ],
                     "report": r.report,
                 }
@@ -625,7 +648,7 @@ def run_cases(
                     )
                 except (ModelRefusal, IncompleteResponse) as exc:
                     count = _expected_checks(case, analysis)
-                    failed = [CheckResult("read completed", False, str(exc))] * count
+                    failed = [CheckResult("read completed", False, str(exc), "error")] * count
                     read = ReadResult(case.name, analysis, failed, error=str(exc))
                 else:
                     read = ReadResult(
@@ -638,6 +661,257 @@ def run_cases(
                 if on_read is not None:
                     on_read(read)
     return Scorecard(reads, model=settings.model, effort=settings.effort, repeat=repeat)
+
+
+# -- comparing ----------------------------------------------------------------------
+
+# Kinds of check that hold a line the principles draw, rather than measure how good a
+# read is. Losing one is a regression whatever the total says: a prompt that finds two
+# more plans and starts saying "avoidant" is worse, not better.
+GUARD_KINDS = frozenset({"avoid", "grounding", "labels", "escalation"})
+
+# Scorecards written before checks carried a kind. Only the fixed names can be
+# recovered; an older avoid check is named by its own "why" and is treated as ordinary.
+_LEGACY_KINDS = {
+    "every claim quotes the match": "grounding",
+    "no flag lost to a misquote": "grounding",
+    "no diagnostic labels": "labels",
+    "opens with the safety notice": "escalation",
+    "no safety notice": "escalation",
+    "read completed": "error",
+}
+
+CheckKey = tuple[str, str, str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class CheckChange:
+    """One check whose pass rate differs between two scorecards."""
+
+    case: str
+    analysis: str
+    name: str
+    kind: str
+    before: tuple[int, int]
+    after: tuple[int, int]
+    detail: str = ""
+
+    @property
+    def delta(self) -> float:
+        return self.after[0] / self.after[1] - self.before[0] / self.before[1]
+
+    @property
+    def guard(self) -> bool:
+        return self.kind in GUARD_KINDS
+
+    @property
+    def one_run(self) -> bool:
+        # Within one run's worth of each other: sampling alone moves a check this far, so
+        # only a repeated run on both sides can say whether the prompt did.
+        return abs(self.delta) <= 1 / max(self.before[1], self.after[1]) + 1e-9
+
+
+@dataclass(slots=True)
+class Comparison:
+    """What changed between a ``before`` and an ``after`` scorecard, check by check."""
+
+    before: dict[str, Any]
+    after: dict[str, Any]
+    shared: int
+    rate_before: float
+    rate_after: float
+    changes: list[CheckChange]
+    unmatched: int
+
+    @property
+    def prompts_changed(self) -> list[str]:
+        old, new = self.before["prompts"], self.after["prompts"]
+        return [a for a in sorted(set(old) | set(new)) if old.get(a) != new.get(a)]
+
+    @property
+    def lost(self) -> list[CheckChange]:
+        return [c for c in self.changes if c.delta < 0]
+
+    @property
+    def gained(self) -> list[CheckChange]:
+        return [c for c in self.changes if c.delta > 0]
+
+    @property
+    def guards_lost(self) -> list[CheckChange]:
+        return [c for c in self.lost if c.guard]
+
+    def to_text(self) -> str:
+        changed = self.prompts_changed
+        out = [
+            "Prompts changed: " + (", ".join(changed) if changed else "none"),
+            f"Runs: {self.before['repeat']} before, {self.after['repeat']} after; "
+            f"{self.after['model']} at {self.after['effort']} effort.",
+        ]
+        if not changed:
+            out.append("Neither prompt changed, so every difference below is sampling.")
+        out.append("")
+
+        def rows(title: str, changes: list[CheckChange]) -> None:
+            if not changes:
+                return
+            out.append(title)
+            width = max(len(c.case) for c in changes)
+            for c in changes:
+                mark = "GUARD " if c.guard else ""
+                noise = "  ~" if c.one_run else ""
+                b, a = c.before, c.after
+                out.append(
+                    f"  {mark}{c.case:<{width}}  {c.analysis:<7}  {c.name}  "
+                    f"{b[0]}/{b[1]} -> {a[0]}/{a[1]}{noise}"
+                )
+                if c.detail:
+                    out.append(f"      now: {c.detail}")
+            out.append("")
+
+        # Guards first, then the biggest moves: what to read before deciding anything.
+        def order(c: CheckChange) -> tuple[bool, float, str, str]:
+            return (not c.guard, -abs(c.delta), c.case, c.name)
+
+        rows("Lost", sorted(self.lost, key=order))
+        rows("Gained", sorted(self.gained, key=order))
+        if not self.changes:
+            out += ["No check changed.", ""]
+
+        noisy = sum(c.one_run for c in self.changes)
+        if noisy:
+            out.append(
+                f"~ {noisy} of {len(self.changes)} changes moved by a single run, which "
+                "sampling alone can do. --repeat on both sides tells them apart."
+            )
+        if self.unmatched:
+            out.append(
+                f"{self.unmatched} checks appear in only one scorecard (a case changed "
+                "between runs) and are left out."
+            )
+        points = 100 * (self.rate_after - self.rate_before)
+        out.append(
+            f"Score on the {self.shared} checks both made: {100 * self.rate_before:.0f}% -> "
+            f"{100 * self.rate_after:.0f}% ({points:+.0f} points)."
+        )
+        if self.guards_lost:
+            out.append(
+                f"{len(self.guards_lost)} guard checks lost. Whatever the score says, this "
+                "change crosses a line the principles draw."
+            )
+        return "\n".join(out)
+
+
+def load_scorecard(path: str | Path) -> dict[str, Any]:
+    """A scorecard written by ``run --out``, checked enough to compare."""
+    path = Path(path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise EvalError(f"No scorecard at {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise EvalError(f"{path} is not JSON: {exc}") from exc
+    keys = {"model", "effort", "repeat", "prompts", "reads"}
+    if not isinstance(data, dict) or not keys <= set(data):
+        raise EvalError(f"{path} is not a scorecard (write one with `run --out`)")
+    for read in data["reads"]:
+        if not {"case", "analysis", "checks"} <= set(read):
+            raise EvalError(f"{path} has a read without case, analysis, and checks")
+    return data
+
+
+def _read_keys(read: dict[str, Any]) -> list[tuple[CheckKey, dict[str, Any]]]:
+    # Check names are the case author's "why", and nothing stops two being the same, so
+    # a check is known by its name and which occurrence of that name it is.
+    seen: dict[str, int] = {}
+    out = []
+    for check in read["checks"]:
+        n = seen[check["name"]] = seen.get(check["name"], -1) + 1
+        out.append(((read["case"], read["analysis"], check["name"], n), check))
+    return out
+
+
+def compare_scorecards(before: dict[str, Any], after: dict[str, Any]) -> Comparison:
+    """Compare two scorecards check by check, as pass rates over each side's runs.
+
+    A refused or cut-off read has no named checks, only "read completed" failures, so it
+    counts as a failed run of every check the other reads of that case made. That keeps
+    the comparison as strict as the score: a prompt that gets refused has lost those
+    checks, not skipped them.
+    """
+    for setting in ("model", "effort"):
+        if before[setting] != after[setting]:
+            raise EvalError(
+                f"The scorecards were made with different {setting}s ({before[setting]} and "
+                f"{after[setting]}). That compares more than the prompts; run both the same way."
+            )
+
+    # Every named check each case and analysis made, on either side, with its kind.
+    known: dict[tuple[str, str], dict[CheckKey, str]] = {}
+    for card in (before, after):
+        for read in card["reads"]:
+            if read.get("error"):
+                continue
+            group = known.setdefault((read["case"], read["analysis"]), {})
+            for key, check in _read_keys(read):
+                group.setdefault(key, check.get("kind") or _LEGACY_KINDS.get(key[2], ""))
+
+    def tally(card: dict[str, Any]) -> tuple[dict[CheckKey, list[int]], dict[CheckKey, str]]:
+        counts: dict[CheckKey, list[int]] = {}
+        details: dict[CheckKey, str] = {}
+        for read in card["reads"]:
+            group = (read["case"], read["analysis"])
+            if read.get("error") and known.get(group):
+                for key in known[group]:
+                    counts.setdefault(key, [0, 0])[1] += 1
+                    details[key] = read["error"]
+                continue
+            if read.get("error"):
+                # Nothing on either side read this case: the one check left is the read.
+                key = (*group, "read completed", 0)
+                counts.setdefault(key, [0, 0])[1] += 1
+                details[key] = read["error"]
+                continue
+            for key, check in _read_keys(read):
+                count = counts.setdefault(key, [0, 0])
+                count[0] += bool(check["passed"])
+                count[1] += 1
+                if not check["passed"] and check.get("detail"):
+                    details[key] = check["detail"]
+        return counts, details
+
+    old, _ = tally(before)
+    new, new_details = tally(after)
+    shared = sorted(set(old) & set(new))
+    changes = []
+    for key in shared:
+        (bp, bn), (ap, an) = old[key], new[key]
+        if bp * an == ap * bn:
+            continue
+        kind = known.get(key[:2], {}).get(key) or _LEGACY_KINDS.get(key[2], "")
+        changes.append(
+            CheckChange(
+                *key[:3],
+                kind=kind,
+                before=(bp, bn),
+                after=(ap, an),
+                detail=new_details.get(key, "") if ap < an else "",
+            )
+        )
+
+    def rate(counts: dict[CheckKey, list[int]]) -> float:
+        # Each check weighs the same whatever the repeat, so a run of 3 and a run of 1
+        # are on one scale.
+        return sum(counts[k][0] / counts[k][1] for k in shared) / len(shared) if shared else 0.0
+
+    return Comparison(
+        before=before,
+        after=after,
+        shared=len(shared),
+        rate_before=rate(old),
+        rate_after=rate(new),
+        changes=changes,
+        unmatched=len(set(old) ^ set(new)),
+    )
 
 
 # -- command line -------------------------------------------------------------------
@@ -675,11 +949,24 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
     run.add_argument("--out", type=Path, help="Also write the scorecard, reports included, here.")
 
+    compare = sub.add_parser(
+        "compare",
+        help="Say which checks a change won and lost between two saved scorecards. No API call.",
+        description="Exits 1 when the after scorecard lost a guard check: an avoid list, a "
+        "quote the match never wrote, a diagnostic label, or the safety notice.",
+    )
+    compare.add_argument("before", type=Path, help="The scorecard to compare against.")
+    compare.add_argument("after", type=Path, help="The scorecard made after the change.")
+
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         if args.command == "check":
             print(_describe_cases(load_cases(args.cases)))
             return 0
+        if args.command == "compare":
+            result = compare_scorecards(load_scorecard(args.before), load_scorecard(args.after))
+            print(result.to_text())
+            return 1 if result.guards_lost else 0
 
         if args.repeat < 1:
             raise EvalError("--repeat should be at least 1")
