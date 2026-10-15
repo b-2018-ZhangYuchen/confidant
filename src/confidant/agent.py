@@ -1,4 +1,4 @@
-"""``confidant ask``: one question about a conversation, with Claude choosing how to answer it.
+"""``confidant ask`` and ``chat``: questions about a conversation, with Claude choosing how.
 
 Every other command decides in advance what the model is shown and what it is asked. This
 one hands Claude the question and a set of tools — the transcript readers, the local
@@ -20,14 +20,15 @@ What stays fixed, whatever Claude chooses:
   it is run afterwards anyway. A question about where to go for dinner can still be
   asked about someone who has been tracking the owner's location, and the fixed safety
   notice should not depend on whether the question happened to make the model look.
-* **Each analyzer runs at most once per question.** A second call for the same read is
-  answered from the first, so a model that asks twice does not bill twice.
+* **Each analyzer runs at most once per question,** or per chat when :class:`Chat` asks
+  several. A second call for the same read is answered from the first, so a model that
+  asks twice does not bill twice.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -53,20 +54,38 @@ from confidant.config import Settings
 from confidant.contact import assess
 from confidant.models import Conversation, Role
 from confidant.progress import Progress
-from confidant.prompts.agent import AGENT_SYSTEM, TOOL_DESCRIPTIONS, build_agent_request
+from confidant.prompts.agent import (
+    AGENT_SYSTEM,
+    TOOL_DESCRIPTIONS,
+    Exchange,
+    build_agent_request,
+)
 from confidant.prompts.common import render_line
 from confidant.redaction import redact
 from confidant.safety import Escalation
 from confidant.timeline import QUIET_GAP
 from confidant.usage import Usage
 
-__all__ = ["READ_LIMIT", "SEARCH_LIMIT", "AgentAnswer", "AskReport", "ask"]
+__all__ = [
+    "HISTORY_LIMIT",
+    "READ_LIMIT",
+    "SEARCH_LIMIT",
+    "AgentAnswer",
+    "AskReport",
+    "Chat",
+    "ask",
+    "chat",
+]
 
 SEARCH_LIMIT = 20
 """Most matches a search returns. A term that matches more is too broad to be useful."""
 
 READ_LIMIT = 60
 """Most messages one read returns, so one call cannot pull a whole long history."""
+
+HISTORY_LIMIT = 6
+"""Most earlier exchanges a follow-up carries. Enough for "what about that?" to land, and
+it keeps the twentieth question from costing what the first nineteen did combined."""
 
 # What each tool is called in the report's "looked at" line.
 _LABELS: dict[str, str] = {
@@ -116,12 +135,17 @@ class AskReport(BaseModel):
         default=None, description="Why the red-flag check could not run, if it could not."
     )
 
-    def to_text(self) -> str:
-        """Render the answer for a terminal."""
+    def to_text(self, *, full_notice: bool = True) -> str:
+        """Render the answer for a terminal.
+
+        ``full_notice=False`` is for a chat that has already shown the safety notice in
+        full: the answer opens with its headline and a fixed line saying it still applies,
+        so the notice is never absent and never the thing scrolled past ten times.
+        """
         out: list[str] = []
         # First, for the same reason as everywhere else: the answer may be milder.
         if self.escalation is not None:
-            out += [self.escalation.to_text(), ""]
+            out += [self.escalation.to_text() if full_notice else self.escalation.reminder(), ""]
         out += [self.answer, ""]
         if self.evidence:
             out.append("FROM THE MESSAGES")
@@ -353,6 +377,116 @@ def _as_tool(analyzer: Callable[..., Any], conversation: Conversation, **kwargs:
         raise ToolError(str(exc)) from exc
 
 
+class Chat:
+    """Questions about one conversation, asked one after another, each able to refer back.
+
+    "What about the friends thing?" only means something after the question before it, so
+    each request carries the earlier questions and answers. They go as the model wrote
+    them, in placeholders, and every new question is redacted with the conversation's own
+    key, so a follow-up can no more send a name than the first question could.
+
+    One set of tools serves every question. The analyzers' results are kept between
+    questions, so a chat runs the personality read and the red-flag check at most once
+    each, however many questions need them. Nothing is saved: the history lives in this
+    object and goes when it does.
+    """
+
+    def __init__(
+        self,
+        conversation: Conversation,
+        *,
+        settings: Settings | None = None,
+        client: anthropic.Anthropic | None = None,
+        now: datetime | None = None,
+        escalation: Escalation | None = None,
+        on_progress: Callable[[Progress], None] | None = None,
+        on_usage: Callable[[Usage], None] | None = None,
+        max_tool_rounds: int = DEFAULT_TOOL_ROUNDS,
+    ) -> None:
+        """``escalation`` is a safety notice already known from elsewhere, such as another
+        saved conversation with the same person. It leads every answer if this
+        conversation's own check finds nothing."""
+        if not conversation.match_messages:
+            raise ValueError(
+                f"{conversation.match_name} has no messages in this transcript — "
+                "nothing to ask about."
+            )
+        self.settings = settings or Settings.from_env()
+        self.client = client
+        self.escalation = escalation
+        self.on_progress = on_progress
+        self.on_usage = on_usage
+        self.max_tool_rounds = max_tool_rounds
+        self.redaction = redact(conversation)
+        self.history: list[Exchange] = []
+        self._session = _Session(
+            self.redaction.conversation,
+            settings=self.settings,
+            client=client,
+            now=now or datetime.now(),
+            on_progress=self._progress,
+            on_usage=on_usage,
+        )
+        self._tools = self._session.tools()
+
+    def _progress(self, progress: Progress) -> None:
+        # Looked up on every event rather than captured, so an interactive caller can give
+        # each question its own status line.
+        if self.on_progress is not None:
+            self.on_progress(progress)
+
+    def ask(self, question: str) -> AskReport:
+        """Answer ``question``, with everything asked so far as context."""
+        question = question.strip()
+        if not question:
+            raise ValueError("Ask a question, e.g. 'have they ever asked about my day?'")
+        conversation = self.redaction.conversation
+        redacted = self.redaction.redact_note(question)
+        earlier = self.history[-HISTORY_LIMIT:]
+        self._session.consulted = []
+        answer = structured_call(
+            schema=AgentAnswer,
+            system=AGENT_SYSTEM,
+            user_content=build_agent_request(
+                conversation, redacted, earlier, left_out=len(self.history) - len(earlier)
+            ),
+            settings=self.settings,
+            client=self.client,
+            on_progress=self._progress,
+            on_usage=self.on_usage,
+            tools=self._tools,
+            max_tool_rounds=self.max_tool_rounds,
+        )
+        try:
+            flags: FlagReport | None = self._session.run_flags()
+        except ToolError as exc:
+            flags = None
+            unchecked = str(exc)
+        else:
+            unchecked = None
+
+        texts = [message.text for message in conversation]
+        evidence = [e for e in answer.evidence if quote_appears_in(e.quote, texts)]
+        # Only what survived grounding is offered back as citable: a misquote handed to
+        # the next question as "checked" would launder it.
+        self.history.append(Exchange(redacted, answer.answer, tuple(e.quote for e in evidence)))
+        report = AskReport(
+            question=question,
+            answer=answer.answer,
+            evidence=evidence,
+            confidence=answer.confidence,
+            caveat=answer.caveat,
+            consulted=self._session.consulted,
+            discarded=len(answer.evidence) - len(evidence),
+            escalation=flags.escalation if flags is not None else None,
+            unchecked=unchecked,
+        )
+        report = self.redaction.restore(report)
+        if report.escalation is None and self.escalation is not None:
+            report = report.model_copy(update={"escalation": self.escalation})
+        return report
+
+
 def ask(
     conversation: Conversation,
     question: str,
@@ -365,63 +499,31 @@ def ask(
     on_usage: Callable[[Usage], None] | None = None,
     max_tool_rounds: int = DEFAULT_TOOL_ROUNDS,
 ) -> AskReport:
-    """Answer ``question`` about the match in ``conversation``, using tools as needed.
+    """Answer one ``question`` about the match in ``conversation``, using tools as needed.
 
     ``escalation`` is a safety notice already known from elsewhere, such as another saved
     conversation with the same person. It leads the answer if this conversation's own
     check finds nothing.
     """
-    question = question.strip()
-    if not question:
+    if not question.strip():
         raise ValueError("Ask a question, e.g. 'have they ever asked about my day?'")
-    if not conversation.match_messages:
-        raise ValueError(
-            f"{conversation.match_name} has no messages in this transcript — nothing to ask about."
-        )
-
-    settings = settings or Settings.from_env()
-    redaction = redact(conversation, notes=[question])
-    session = _Session(
-        redaction.conversation,
+    return Chat(
+        conversation,
         settings=settings,
         client=client,
-        now=now or datetime.now(),
+        now=now,
+        escalation=escalation,
         on_progress=on_progress,
         on_usage=on_usage,
-    )
-    answer = structured_call(
-        schema=AgentAnswer,
-        system=AGENT_SYSTEM,
-        user_content=build_agent_request(redaction.conversation, redaction.notes[0]),
-        settings=settings,
-        client=client,
-        on_progress=on_progress,
-        on_usage=on_usage,
-        tools=session.tools(),
         max_tool_rounds=max_tool_rounds,
-    )
-    try:
-        flags: FlagReport | None = session.run_flags()
-    except ToolError as exc:
-        flags = None
-        unchecked = str(exc)
-    else:
-        unchecked = None
+    ).ask(question)
 
-    texts = [message.text for message in redaction.conversation]
-    evidence = [e for e in answer.evidence if quote_appears_in(e.quote, texts)]
-    report = AskReport(
-        question=question,
-        answer=answer.answer,
-        evidence=evidence,
-        confidence=answer.confidence,
-        caveat=answer.caveat,
-        consulted=session.consulted,
-        discarded=len(answer.evidence) - len(evidence),
-        escalation=flags.escalation if flags is not None else None,
-        unchecked=unchecked,
-    )
-    report = redaction.restore(report)
-    if report.escalation is None and escalation is not None:
-        report = report.model_copy(update={"escalation": escalation})
-    return report
+
+def chat(conversation: Conversation, questions: Sequence[str], **kwargs: Any) -> list[AskReport]:
+    """Ask ``questions`` in order as one chat, and return every answer.
+
+    The non-interactive form of ``confidant chat``, for recordings and scripts. Takes the
+    same keyword arguments as :class:`Chat`.
+    """
+    session = Chat(conversation, **kwargs)
+    return [session.ask(question) for question in questions]

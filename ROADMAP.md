@@ -39,7 +39,7 @@ need something else first, and that reordering is part of the record.
 ## Week 4 — An agent, not a script
 
 - [x] **Tue Oct 13** — Turn the analyzers into tools and put Claude in the loop
-- [ ] **Wed Oct 14** — Conversational interface: ask follow-up questions about a person
+- [x] **Wed Oct 14** — Conversational interface: ask follow-up questions about a person
 - [ ] **Thu Oct 15** — Import adapters — WhatsApp, iMessage, and Hinge exports
 - [ ] **Fri Oct 16** — FastAPI backend over the same core
 - [ ] **Sat Oct 17** — Web UI: transcript upload and report view

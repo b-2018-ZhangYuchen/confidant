@@ -52,7 +52,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from confidant.agent import ask
+from confidant.agent import ask, chat
 from confidant.analysis.comfort import comfort
 from confidant.analysis.draft import draft_reply
 from confidant.analysis.flags import analyze_flags
@@ -400,7 +400,7 @@ class RecordingClient:
             ),
         )
         # A second call in one run gets its own numbered file rather than overwriting the
-        # first. Only `ask` makes more than one.
+        # first. Only `ask` and `chat` make more than one.
         path = self._path
         if self.saved:
             path = path.with_name(f"{path.stem}.{len(self.saved) + 1}{path.suffix}")
@@ -468,6 +468,7 @@ ANALYSES: dict[str, Callable[..., Any]] = {
     "draft": draft_reply,
     "comfort": comfort,
     "ask": ask,
+    "chat": chat,
 }
 
 # Options an analysis takes beyond the transcript. A recording keeps them in its source,
@@ -478,10 +479,15 @@ OPTIONS: dict[str, tuple[str, ...]] = {
     "draft": ("tone", "say"),
     "comfort": ("what",),
     "ask": ("question", "now"),
+    "chat": ("questions", "now"),
 }
 
-# Options stored as text that the analysis takes as something else.
-_PARSE: dict[str, Callable[[str], Any]] = {"now": datetime.fromisoformat}
+# Options stored as text that the analysis takes as something else. A chat's questions are
+# kept one per line, so a source stays a flat mapping of strings.
+_PARSE: dict[str, Callable[[str], Any]] = {
+    "now": datetime.fromisoformat,
+    "questions": str.splitlines,
+}
 
 # The ".2" in "ask_pressure.2.json": a later call in a set.
 _NUMBERED = re.compile(r"\.(\d+)$")
@@ -573,7 +579,7 @@ def _record(
     _check_fictional(transcript)
     settings = Settings.from_env()
     options = options or {}
-    if analysis == "ask":
+    if analysis in ("ask", "chat"):
         options.setdefault("now", datetime.now().isoformat(timespec="minutes"))
     recorder = RecordingClient(
         build_client(settings),
@@ -642,9 +648,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     record.add_argument("--tone", help="For draft: the tone to draft in.")
     record.add_argument("--say", help="For draft: what the owner wants to say.")
     record.add_argument("--what", help="For comfort: what happened, in the owner's words.")
-    record.add_argument("--question", help="For ask: the question.")
     record.add_argument(
-        "--now", help="For ask: the moment to answer as of, e.g. 2026-04-12T10:00 (default: now)."
+        "--question",
+        action="append",
+        help="For ask: the question. For chat: one question; repeat for each follow-up.",
+    )
+    record.add_argument(
+        "--now",
+        help="For ask and chat: the moment to answer as of, e.g. 2026-04-12T10:00 (default: now).",
     )
 
     stamp = sub.add_parser(
@@ -655,10 +666,15 @@ def main(argv: Iterable[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         if args.command == "record":
+            questions = args.question or []
+            if args.analysis == "ask" and len(questions) > 1:
+                raise RecordingError("ask takes one --question; record a chat for follow-ups")
+            args.question = questions[0] if questions else None
+            args.questions = "\n".join(questions) if questions else None
             options = {
                 name: getattr(args, name)
                 for name in OPTIONS.get(args.analysis, ())
-                if getattr(args, name) is not None
+                if getattr(args, name, None) is not None
             }
             out = _record(args.analysis, args.transcript, args.out, args.note, options)
             print(f"wrote {out}")

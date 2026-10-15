@@ -6,6 +6,9 @@ model reads them as instructions, so they are prompt text and get reviewed as pr
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+
 from confidant.models import Conversation
 from confidant.prompts.common import REDACTION_NOTE, render_header
 
@@ -88,13 +91,54 @@ TOOL_DESCRIPTIONS: dict[str, str] = {
 }
 
 
-def build_agent_request(conversation: Conversation, question: str) -> str:
-    """The first user turn: who is who, the cheap signals, and the question."""
+# Only in a follow-up's request, never in the system prompt: the system prompt is the
+# cached prefix every question shares, and a first question should send exactly what a
+# one-off `confidant ask` does.
+FOLLOW_UP_NOTE = """\
+This is a follow-up. Below are the questions I asked before and the answers you gave, \
+so you can tell what "that" or "the second thing" refers to. They are context, not \
+evidence: an earlier answer may have been wrong, and nothing in it is true just because \
+you said it. Quotes listed under an earlier answer were checked against the transcript \
+and may be cited again; anything else you claim needs a line you read with a tool. Do \
+not repeat an earlier answer; answer the new question, and say so plainly if it is one \
+the transcript cannot answer.\
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class Exchange:
+    """An earlier question and the answer given to it, as the model saw them."""
+
+    question: str
+    answer: str
+    quotes: tuple[str, ...] = ()
+
+
+def build_agent_request(
+    conversation: Conversation,
+    question: str,
+    earlier: Sequence[Exchange] = (),
+    *,
+    left_out: int = 0,
+) -> str:
+    """The first user turn: who is who, the cheap signals, and the question.
+
+    ``earlier`` is what was already asked in this conversation with Confidant, oldest
+    first; ``left_out`` counts older exchanges that were dropped to keep it short.
+    """
     lines = render_header(conversation)
-    lines += [
-        "",
-        "The transcript is not in this message; read it with the tools.",
-        "",
-        f"My question: {question}",
-    ]
+    lines += ["", "The transcript is not in this message; read it with the tools."]
+    if not earlier:
+        lines += ["", f"My question: {question}"]
+        return "\n".join(lines)
+
+    lines += ["", FOLLOW_UP_NOTE]
+    if left_out:
+        noun = "question" if left_out == 1 else "questions"
+        lines += ["", f"({left_out} earlier {noun} not shown.)"]
+    for number, exchange in enumerate(earlier, start=left_out + 1):
+        lines += ["", f"Earlier question {number}: {exchange.question}"]
+        lines.append(f"Your answer: {exchange.answer}")
+        lines += [f'  quoted: "{quote}"' for quote in exchange.quotes]
+    lines += ["", f"My follow-up question: {question}"]
     return "\n".join(lines)

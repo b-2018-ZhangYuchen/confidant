@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. A chat of two questions about the pressure transcript. The first is ask_pressure exactly; the follow-up searches once and answers without a second red-flag check, since the chat already ran one.",
+  "source": {
+    "analysis": "chat",
+    "transcript": "examples/pressure_chat.txt",
+    "questions": "Casey says everyone shares their location. Is that normal?\nAnd what about when I went out with my friends?",
+    "now": "2026-04-12T10:00"
+  },
+  "request": {
+    "schema": "AgentAnswer",
+    "model": "claude-opus-5",
+    "system_sha256": "2f27df22d40a88ba84db693a3460acbfeb202ffedd5af3a940396cd723aa6e79",
+    "messages_sha256": "010ac5f63d80b9dbb02ae87aecf7b5e814643022eaa43f998a7cc6d22847f2f2"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "answer": "The same pattern, from a different side. When you said you were going out with friends, [MATCH] answered that your friends do not like them and that you should be spending that time with them instead, and just before midnight asked who you were with. Wanting to see someone is ordinary; treating your time with friends as time taken from them, on the same weekend as asking to track where you are, is not. The next morning they said they care more than you do, after you had simply been asleep.",
+      "evidence": [
+        {
+          "quote": "your friends again? they don't even like me",
+          "why_it_matters": "Sets [OWNER]'s friends up as against [MATCH]."
+        },
+        {
+          "quote": "you should be spending that time with me",
+          "why_it_matters": "Casts a night with friends as time owed to [MATCH]."
+        },
+        {
+          "quote": "who are you with right now",
+          "why_it_matters": "Checks on [OWNER]'s company while they are out."
+        },
+        {
+          "quote": "I guess I just care more than you do. whatever",
+          "why_it_matters": "Turns an ordinary night's sleep into a measure of [OWNER]'s feelings."
+        }
+      ],
+      "confidence": "medium",
+      "caveat": "One weekend of messages; it shows what [MATCH] said about your friends, not what they would do."
+    },
+    "usage": {
+      "input_tokens": 988,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1630,
+      "output_tokens": 402
+    }
+  }
+}

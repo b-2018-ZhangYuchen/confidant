@@ -37,6 +37,7 @@ __all__ = [
     "CATEGORY_STEPS",
     "ESCALATION_ORDER",
     "STEPS",
+    "STILL_APPLIES",
     "SUPPORT_HEADLINE",
     "SUPPORT_STEPS",
     "Escalation",
@@ -142,6 +143,8 @@ _CLOSING: tuple[str, ...] = ("no_reply_owed",)
 
 _WIDTH = 88
 
+STILL_APPLIES = "The safety notice shown earlier in this chat still applies."
+
 
 class Escalation(BaseModel):
     """The notice shown ahead of everything else when a check finds tier-3 behavior."""
@@ -176,6 +179,19 @@ class Escalation(BaseModel):
             if self.routing.note:
                 lines.append(_fill(self.routing.note))
         return "\n".join(lines)
+
+    def reminder(self) -> str:
+        """The headline alone, for a chat that has already shown the whole notice.
+
+        Still fixed text, still first: a later answer that skipped the notice would read
+        as though the danger had been dealt with.
+        """
+        return textwrap.fill(
+            f"{self.headline} {STILL_APPLIES}",
+            _WIDTH,
+            initial_indent="!! ",
+            subsequent_indent="   ",
+        )
 
 
 def _fill(text: str, indent: str = "   ") -> str:

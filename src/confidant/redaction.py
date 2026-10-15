@@ -105,6 +105,19 @@ class Redaction:
     notes: list[str] = field(default_factory=list)
     """The owner's own free text for the request, redacted with the same key."""
 
+    _redactor: _Redactor | None = field(default=None, repr=False, compare=False)
+
+    def redact_note(self, text: str) -> str:
+        """Redact more of the owner's free text with this redaction's key.
+
+        For text that arrives after the conversation was redacted, such as a follow-up
+        question. A detail seen before gets the placeholder it already has; a new one is
+        issued the next number and can be restored like any other.
+        """
+        if self._redactor is None:
+            raise ValueError("This redaction was not made by redact(); it has no key to extend")
+        return self._redactor.text(text)
+
     def restore_text(self, text: str) -> str:
         """Swap every placeholder this redaction issued back for what it replaced.
 
@@ -298,4 +311,5 @@ def redact(
         originals=redactor.originals,
         kinds=redactor.kinds,
         notes=redacted_notes,
+        _redactor=redactor,
     )

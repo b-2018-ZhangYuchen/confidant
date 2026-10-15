@@ -7,6 +7,7 @@ confidant flags    examples/sample_chat.txt      # calls Claude
 confidant draft    examples/sample_chat.txt      # calls Claude; or a saved name
 confidant comfort  examples/faded_chat.txt       # calls Claude; or a saved name
 confidant ask      examples/pressure_chat.txt "..."  # Claude, with tools; or a saved name
+confidant chat     examples/pressure_chat.txt      # ask, with follow-ups; or a saved name
 
 confidant add      Robin examples/sample_chat.txt  # local store, no API call
 confidant list
@@ -22,13 +23,14 @@ from __future__ import annotations
 import argparse
 import contextlib
 import sys
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
 import anthropic
 
 from confidant import __version__
-from confidant.agent import ask
+from confidant.agent import Chat, ask
 from confidant.analysis.comfort import comfort
 from confidant.analysis.draft import DEFAULT_TONE, draft_reply
 from confidant.analysis.flags import analyze_flags
@@ -390,6 +392,81 @@ def _run_on_thread(args: argparse.Namespace) -> int:
     return 0
 
 
+# Words that end a chat rather than being asked. Only whole lines, so "exit plan?" is
+# still a question.
+_QUIT = frozenset({"quit", "exit", "bye"})
+
+
+def _questions(interactive: bool) -> Iterator[str]:
+    """Questions from stdin, one per line, until end of input or a quit word."""
+    while True:
+        if interactive:
+            # The prompt goes to stderr, so stdout holds only answers.
+            print("> ", end="", file=sys.stderr, flush=True)
+        line = sys.stdin.readline()
+        if not line:
+            if interactive:
+                print(file=sys.stderr)
+            return
+        question = line.strip()
+        if question.casefold() in _QUIT:
+            return
+        if question:
+            yield question
+
+
+def _run_chat(args: argparse.Namespace) -> int:
+    """``chat``: ``ask``, again and again, with each answer in the next one's context."""
+    try:
+        conversation, escalation = _thread_source(args)
+    except UnknownPerson as exc:
+        print(f"confidant: {exc}. 'confidant list' shows who is.", file=sys.stderr)
+        return 2
+    except (StoreError, TranscriptError) as exc:
+        print(f"confidant: {exc}", file=sys.stderr)
+        return 2
+    conversation.private_names.extend(args.private_names)
+
+    interactive = sys.stdin.isatty()
+    settings: Settings | None = None
+    meter = UsageMeter()
+    notice_shown = False
+    try:
+        settings = Settings.from_env()
+        session = Chat(conversation, settings=settings, escalation=escalation, on_usage=meter)
+        if interactive:
+            print(
+                f"Ask about {conversation.match_name}, one question per line. Follow-ups can "
+                "refer back to earlier answers. Ctrl-D or 'quit' to stop. Nothing from this "
+                "chat is saved.",
+                file=sys.stderr,
+            )
+        for question in _questions(interactive):
+            status = _status(args)
+            session.on_progress = status
+            try:
+                with status or contextlib.nullcontext():
+                    report = session.ask(question)
+            except (ModelRefusal, IncompleteResponse, ToolLoopError) as exc:
+                # One question going wrong is not the chat going wrong: say so and take
+                # the next. A failed question leaves no trace in what later ones are told.
+                print(f"confidant: {_model_failure(exc, settings)[1]}", file=sys.stderr)
+                continue
+            if args.json:
+                # One answer per line, so the output can be read as it arrives.
+                print(report.model_dump_json(), flush=True)
+            else:
+                print(report.to_text(full_notice=not notice_shown), end="\n\n", flush=True)
+            notice_shown = notice_shown or report.escalation is not None
+    except _MODEL_ERRORS as exc:
+        code, message = _model_failure(exc, settings)
+        print(f"confidant: {message}", file=sys.stderr)
+        _report_usage(meter)
+        return code
+    _report_usage(meter)
+    return 0
+
+
 def _run_store_command(args: argparse.Namespace) -> int:
     try:
         with Store() as store:
@@ -430,6 +507,7 @@ examples:
   confidant draft examples/sample_chat.txt --tone playful
   confidant comfort examples/faded_chat.txt
   confidant ask examples/pressure_chat.txt "should I be worried about the location thing?"
+  confidant chat Casey
   confidant add Robin examples/sample_chat.txt
   confidant show Robin
   confidant profile Robin --update
@@ -440,14 +518,14 @@ examples:
 stats and redact never touch the network, and neither do add, list, show,
 remove, profile, timeline, and nudge, which keep people and their conversations
 in a local file.
-analyze, flags, draft, comfort, ask, and profile --update send the redacted
+analyze, flags, draft, comfort, ask, chat, and profile --update send the redacted
 transcript to the Anthropic API and nowhere else, and end with a line on stderr saying how
 many tokens they used and roughly what that cost.
 draft never sends a message: it prints suggestions and you do the rest.
 
 environment (or put these in .env):
-  ANTHROPIC_API_KEY     needed for analyze, flags, draft, comfort, ask, and
-                        profile --update
+  ANTHROPIC_API_KEY     needed for analyze, flags, draft, comfort, ask, chat,
+                        and profile --update
   CONFIDANT_DB          the local store, default ~/.confidant/confidant.db
   CONFIDANT_MODEL       default {DEFAULT_MODEL}
   CONFIDANT_EFFORT      low, medium, high (default), xhigh, or max
@@ -587,7 +665,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "question", help="What you want to know, e.g. 'have they ever asked about my day?'"
     )
 
-    for sub in (draft, comfort_parser, ask_parser):
+    chat_parser = subcommands.add_parser(
+        "chat",
+        help="Ask Claude about someone, with follow-up questions. Reads questions from stdin.",
+        description=(
+            "Ask Claude about someone, one question per line, with follow-ups that can refer "
+            "back to earlier answers ('what about the friends thing?'). Each question is "
+            "answered the way ask answers one; the red-flag check runs once for the whole "
+            "chat, and a safety notice is shown in full with the first answer and named "
+            "again above every answer after it. Questions are read from stdin, so a file "
+            "of them can be piped in. Nothing from the chat is saved."
+        ),
+        epilog=_FORMAT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    chat_parser.add_argument("source", metavar="TRANSCRIPT_OR_NAME")
+
+    for sub in (draft, comfort_parser, ask_parser, chat_parser):
         sub.add_argument(
             "--owner", metavar="NAME", help="Your name in the transcript. Overrides '# owner:'."
         )
@@ -722,7 +816,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # Every command that can open with a safety notice. An unknown region is not an
     # error: someone at a bad moment who mistypes their country still gets the notice,
     # with a line saying there are no numbers on file for it.
-    for name in ("flags", "draft", "comfort", "ask", "profile", "timeline", "nudge"):
+    for name in ("flags", "draft", "comfort", "ask", "chat", "profile", "timeline", "nudge"):
         subcommands.choices[name].add_argument(
             "--region",
             metavar="COUNTRY",
@@ -780,6 +874,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_profile(args)
     if args.command in ("draft", "comfort", "ask"):
         return _run_on_thread(args)
+    if args.command == "chat":
+        return _run_chat(args)
 
     try:
         conversation = read_transcript(args.transcript, owner=args.owner, match=args.match)

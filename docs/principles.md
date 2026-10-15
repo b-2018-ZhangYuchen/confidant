@@ -61,7 +61,7 @@ guessed, because a confident wrong number is worse than the general advice.
 
 `confidant stats`, `confidant redact`, and the commands that manage who the owner is
 seeing (`add`, `list`, `show`, `remove`, `profile`, `timeline`, `nudge`) never make a network call. `confidant analyze`,
-`confidant flags`, `confidant draft`, `confidant comfort`, `confidant ask`, and `confidant profile --update` send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
+`confidant flags`, `confidant draft`, `confidant comfort`, `confidant ask`, `confidant chat`, and `confidant profile --update` send the transcript to the Anthropic API and nowhere else: no telemetry, no analytics, no
 third parties. What they send is redacted first: names, phone numbers, email and street
 addresses, links, and handles are replaced with placeholders on the owner's machine, and
 put back only in the report the owner reads. The model does not need to know who anyone
@@ -77,6 +77,9 @@ what they are told is fixed text in `src/confidant/safety.py`, shown before anyt
 `confidant ask` lets the model choose which tools to use, but not what they can reach:
 every tool reads the same redacted copy of the one conversation it was asked about, so
 no choice the model makes can send anything beyond that redacted conversation.
+`confidant chat` keeps that true across follow-ups: each new question is redacted with
+the conversation's own key, the earlier answers it carries are the model's own
+placeholdered text, and the chat is held only in memory, never written to the store.
 
 `confidant draft` writes words the owner might send, and sends none of them. There is no
 code path in Confidant that messages anyone.

@@ -42,6 +42,7 @@ Early and honest about it. Working today:
 | ✅ | An eval set — fictional transcripts with the findings a good read should contain, scored locally so prompt changes can be measured |
 | ✅ | `evals compare` — which checks a prompt change won and lost, with guard checks that fail the comparison whatever the score |
 | ✅ | `confidant ask` — one question, and Claude decides what to look at: it searches and reads the transcript and runs the personality read or red-flag check as tools, with every quote checked and the red-flag check run whatever was asked |
+| ✅ | `confidant chat` — follow-up questions: each answer is in the next question's context, the checks run once for the whole chat, and nothing from it is saved |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -105,7 +106,7 @@ Sam <-> Robin
   last message     2026-03-05 21:36
 ```
 
-While `analyze`, `flags`, `draft`, `comfort`, or `ask` is waiting on Claude, a single line on stderr says
+While `analyze`, `flags`, `draft`, `comfort`, `ask`, or `chat` is waiting on Claude, a single line on stderr says
 what stage it has reached, and rewrites itself as it goes:
 
 ```
@@ -611,9 +612,70 @@ nothing Claude is shown along the way carries a name or number the first request
 not, and your question is redacted with the same placeholders. After eight rounds of
 tools without an answer, it stops and says so rather than running up a bill.
 
+### Follow-up questions
+
+One answer usually raises the next question. `confidant chat` takes them one per line,
+and each answer is part of what the next question is asked with, so "what about the
+friends thing?" means something:
+
+```bash
+confidant chat Casey
+```
+
+```
+> Casey says everyone shares their location. Is that normal?
+  (the answer above, safety notice first)
+> And what about when I went out with my friends?
+```
+
+The second answer opens with the notice's headline rather than all of it again:
+
+```
+!! Something in Casey's messages is serious: tracking where you are and pressure to pull
+   away from friends or family. The safety notice shown earlier in this chat still
+   applies.
+
+The same pattern, from a different side. When you said you were going out with friends, Casey answered that your friends do not like them and that you should be spending that time with them instead, and just before midnight asked who you were with. Wanting to see someone is ordinary; treating your time with friends as time taken from them, on the same weekend as asking to track where you are, is not. The next morning they said they care more than you do, after you had simply been asleep.
+
+FROM THE MESSAGES
+  "your friends again? they don't even like me"
+    -> Sets Jordan's friends up as against Casey.
+  "you should be spending that time with me"
+    -> Casts a night with friends as time owed to Casey.
+  "who are you with right now"
+    -> Checks on Jordan's company while they are out.
+  "I guess I just care more than you do. whatever"
+    -> Turns an ordinary night's sleep into a measure of Jordan's feelings.
+
+Confidence: medium
+Caveat: One weekend of messages; it shows what Casey said about your friends, not what they would do.
+Looked at: a search.
+```
+
+and when the chat ends (Ctrl-D, or `quit`), stderr says what the whole of it cost:
+
+```
+confidant: 6 calls used 13,283 input tokens (7,572 read from the cache, 1,630 written to it) and 2,601 output tokens, about $0.099.
+```
+
+The follow-up did not run the red-flag check a second time. The checks run at most once
+per chat, and the safety notice that came from it leads every answer after the first,
+named in one line so it is never missing and never the thing you learn to scroll past.
+Earlier answers are passed on as context, not evidence: only the quotes that survived
+checking are offered back as citable, so a misquote dropped from one answer cannot
+return in the next as something already verified. Each follow-up is redacted with the
+same key as the transcript — a name it shares gets the same placeholder, a new number
+gets a new one — and the chat itself is kept only in memory. The last six exchanges are
+sent with each question, so what a question costs stops growing after the sixth.
+
+Questions can be piped in too (`confidant chat Casey < questions.txt`), with `--json`
+printing one answer per line. A question Claude declines or cannot finish is reported
+and skipped; the chat goes on, and the failed question is not part of what later ones
+are told.
+
 ### What gets sent
 
-Before `analyze`, `flags`, `draft`, `comfort`, or `ask` builds a request, the transcript is redacted on your machine.
+Before `analyze`, `flags`, `draft`, `comfort`, `ask`, or `chat` builds a request, the transcript is redacted on your machine.
 Both names become `[OWNER]` and `[MATCH]`; phone numbers, long account-like numbers,
 email addresses, street addresses, links, and social handles become numbered
 placeholders. The same detail always gets the same placeholder, so the model can still
@@ -682,7 +744,7 @@ Your chat history is about as private as data gets, and this repo is built aroun
   wrote them — redaction happens on the way to the API, not on the way to disk — and the
   reads `profile --update` saves, with names put back, which `remove` overwrites too.
 - `confidant analyze`, `confidant flags`, `confidant draft`, `confidant comfort`,
-  `confidant ask`, and `confidant profile --update` send the redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
+  `confidant ask`, `confidant chat`, and `confidant profile --update` send the redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
   Confidant's own instructions are marked for prompt caching, so a `profile --update`
   that reads several conversations pays full price for them once; the transcript is
@@ -695,7 +757,7 @@ from:
 
 | Variable | Default | |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, `draft`, `comfort`, `ask`, and `profile --update`; nothing else uses it. |
+| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, `draft`, `comfort`, `ask`, `chat`, and `profile --update`; nothing else uses it. |
 | `CONFIDANT_MODEL` | `claude-opus-5` | |
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
@@ -744,6 +806,8 @@ its recordings come in numbered sets — `ask_pressure.json`, `ask_pressure.2.js
 so on, in call order. A round that asked for tools keeps the content blocks the next
 request quotes back. Replay, record, and stamp a set by its first file; `record ask`
 takes `--question`, and `--now` for the moment the keep-in-touch tool counts from.
+`record chat` takes `--question` once per question, in order, and its set holds every
+call the whole chat made (`chat_pressure` is `ask_pressure` followed by one follow-up).
 
 A recording also keeps the response's token counts, so the usage line runs for real in a
 replay too. They are not part of the fingerprint: they say what a call cost, not what it

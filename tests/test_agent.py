@@ -1,15 +1,18 @@
 """Tests for `confidant ask`: the tool loop, the tools, and what is checked after it.
 
-Offline, like the rest of the suite. Two hand-written recording sets in
+Offline, like the rest of the suite. Three hand-written recording sets in
 ``tests/fixtures/recorded`` drive the agent end to end: ``ask_pressure`` (a search, the
 statistics, the red-flag check, and an answer with one misquote) and ``ask_sample`` (an
-answer from the messages alone, so the red-flag check runs afterwards). The loop itself
-is tested against a scripted fake, where each round's response is spelled out.
+answer from the messages alone, so the red-flag check runs afterwards), and for `confidant
+chat`, ``chat_pressure``: ``ask_pressure`` call for call, then a follow-up that searches
+once and answers without a second red-flag check. The loop itself is tested against a
+scripted fake, where each round's response is spelled out.
 """
 
 from __future__ import annotations
 
 import functools
+import io
 import json
 import shutil
 from datetime import datetime
@@ -18,11 +21,23 @@ from types import SimpleNamespace
 
 import pytest
 
-from confidant.agent import READ_LIMIT, SEARCH_LIMIT, AgentAnswer, AskReport, _Session, ask
+from confidant.agent import (
+    HISTORY_LIMIT,
+    READ_LIMIT,
+    SEARCH_LIMIT,
+    AgentAnswer,
+    AskReport,
+    Chat,
+    _Session,
+    ask,
+    chat,
+)
 from confidant.analysis.flags import FlagScan
+from confidant.analysis.personality import Evidence
 from confidant.cli import main
 from confidant.client import (
     DEFAULT_TOOL_ROUNDS,
+    ModelRefusal,
     Tool,
     ToolError,
     ToolLoopError,
@@ -32,7 +47,7 @@ from confidant.client import (
 from confidant.config import Settings
 from confidant.ingest.transcript import read_transcript
 from confidant.models import Conversation, Message, Role
-from confidant.prompts.agent import TOOL_DESCRIPTIONS
+from confidant.prompts.agent import FOLLOW_UP_NOTE, TOOL_DESCRIPTIONS
 from confidant.recording import (
     Fingerprint,
     Recording,
@@ -45,7 +60,7 @@ from confidant.recording import (
 )
 from confidant.recording import main as recording_main
 from confidant.redaction import redact
-from confidant.safety import escalate
+from confidant.safety import STILL_APPLIES, escalate
 from confidant.store import Store
 from confidant.usage import UsageMeter
 
@@ -600,4 +615,264 @@ def test_readme_ask_example_matches_what_the_cli_prints(cli, capsys):
     start = readme.index(f'confidant ask {PRESSURE} \\\n    "{PRESSURE_QUESTION}"\n```\n\nprints')
     block = readme[start:].split("```\n", 3)[2]
     assert captured.out == block
+    assert captured.err.strip() in readme
+
+
+# -- chat: follow-up questions ----------------------------------------------------
+
+FOLLOW_UP = "And what about when I went out with my friends?"
+NO_FLAGS = FlagScan(flags=[], summary="Nothing of concern.", confidence="low")
+
+
+def _answer(text: str = "ok", *quotes: str) -> AgentAnswer:
+    evidence = [Evidence(quote=q, why_it_matters="because") for q in quotes]
+    return AgentAnswer(answer=text, evidence=evidence, confidence="low", caveat="thin")
+
+
+def _chat_pressure():
+    client = ReplayClient(*recording_set(RECORDINGS / "chat_pressure.json"))
+    reports = chat(
+        read_transcript(PRESSURE),
+        [PRESSURE_QUESTION, FOLLOW_UP],
+        settings=Settings(),
+        client=client,
+        now=PRESSURE_NOW,
+    )
+    return reports, client
+
+
+def _scripted_chat(*responses, conversation: Conversation | None = None) -> tuple[Chat, Scripted]:
+    client = Scripted(*responses)
+    session = Chat(
+        conversation or read_transcript(SAMPLE),
+        settings=Settings(),
+        client=client,
+        now=PRESSURE_NOW,
+    )
+    return session, client
+
+
+def _first_turn(request: dict) -> str:
+    return request["messages"][0]["content"]
+
+
+# -- the recorded chat ----------------------------------------------------------
+
+
+def test_the_first_question_sends_exactly_what_ask_sends():
+    _, client = _chat_pressure()
+    ask_set = recording_set(RECORDINGS / "ask_pressure.json")
+    sent = [Fingerprint.of(request) for request in client.requests[: len(ask_set)]]
+    assert sent == [recording.fingerprint for recording in ask_set]
+
+
+def test_the_follow_up_reuses_the_red_flag_check():
+    (first, second), client = _chat_pressure()
+    assert client.remaining == 0
+    assert [r["output_format"] for r in client.requests].count(FlagScan) == 1
+    assert first.consulted == ["search_messages", "conversation_stats", "check_red_flags"]
+    assert second.consulted == ["search_messages"]
+    assert second.escalation == first.escalation
+    assert second.question == FOLLOW_UP
+    assert "your friends again? they don't even like me" in [e.quote for e in second.evidence]
+
+
+def test_the_follow_up_carries_the_earlier_exchange_redacted_and_grounded():
+    _, client = _chat_pressure()
+    follow_up = _first_turn(client.requests[4])
+    assert FOLLOW_UP_NOTE in follow_up
+    assert "Earlier question 1: [MATCH] says everyone shares their location." in follow_up
+    assert "Your answer: Some couples do share locations" in follow_up
+    assert '  quoted: "come on, it\'s not a big deal. everyone does it"' in follow_up
+    # The misquote dropped from the first answer is not handed on as checked.
+    assert "I need to know where you are at all times" not in follow_up
+    assert follow_up.endswith(f"My follow-up question: {FOLLOW_UP}")
+    for request in client.requests:
+        sent = json.dumps(request["messages"])
+        assert "Casey" not in sent and "Jordan" not in sent
+
+
+def test_a_replayed_chat_returns_every_answer():
+    reports = run_analysis(
+        "chat",
+        PRESSURE,
+        client=ReplayClient(*recording_set(RECORDINGS / "chat_pressure.json")),
+        options={"questions": f"{PRESSURE_QUESTION}\n{FOLLOW_UP}", "now": "2026-04-12T10:00"},
+    )
+    assert [r.question for r in reports] == [PRESSURE_QUESTION, FOLLOW_UP]
+
+
+def test_the_reminder_names_the_danger_without_repeating_the_steps():
+    (first, second), _ = _chat_pressure()
+    full = second.to_text()
+    short = second.to_text(full_notice=False)
+    assert full.startswith(first.escalation.to_text())
+    notice, rest = short.split("\n\n", 1)
+    assert notice.startswith("!! Something in Casey's messages is serious")
+    assert " ".join(notice.split()).endswith(STILL_APPLIES)
+    assert "You do not have to share your location" not in short
+    assert full.endswith(rest)
+
+
+# -- the session, against a scripted model -------------------------------------
+
+
+def test_an_analyzer_runs_once_for_the_whole_chat():
+    session, client = _scripted_chat(
+        _final(_answer()),
+        _final(NO_FLAGS),
+        _tool_round(_use("a", "check_red_flags")),
+        _final(_answer()),
+    )
+    first = session.ask("does Robin ask about me?")
+    second = session.ask("is there anything to worry about?")
+    assert [r["output_format"] for r in client.requests].count(FlagScan) == 1
+    assert first.consulted == []
+    assert second.consulted == ["check_red_flags"]
+    assert client.responses == []
+
+
+def test_older_exchanges_are_dropped_past_the_limit():
+    asked = HISTORY_LIMIT + 3
+    answers = [_final(_answer(f"answer {n}")) for n in range(asked)]
+    session, client = _scripted_chat(answers[0], _final(NO_FLAGS), *answers[1:])
+    for n in range(asked):
+        session.ask(f"question {n + 1}")
+    last = _first_turn(client.requests[-1])
+    assert "(2 earlier questions not shown.)" in last
+    assert "Earlier question 2:" not in last
+    assert "Earlier question 3: question 3" in last
+    assert f"Earlier question {asked - 1}: question {asked - 1}" in last
+    assert last.count("Your answer:") == HISTORY_LIMIT
+
+
+def test_a_question_that_fails_leaves_no_trace_in_the_next():
+    refusal = SimpleNamespace(
+        stop_reason="refusal",
+        stop_details=SimpleNamespace(category="cyber", explanation="no"),
+        parsed_output=None,
+    )
+    session, client = _scripted_chat(refusal, _final(_answer()), _final(NO_FLAGS))
+    with pytest.raises(ModelRefusal):
+        session.ask("first try")
+    session.ask("second try")
+    second = _first_turn(client.requests[1])
+    assert "Earlier question" not in second
+    assert second.endswith("My question: second try")
+
+
+def test_a_follow_up_is_redacted_with_the_conversations_own_key():
+    conversation = read_transcript(SAMPLE)
+    conversation.private_names.append("Maya")
+    session, client = _scripted_chat(
+        _final(_answer()),
+        _final(NO_FLAGS),
+        _final(_answer("Call [PHONE_1] if [MATCH] means it, and ask [NAME_1].")),
+        conversation=conversation,
+    )
+    session.ask("does Robin like me?")
+    report = session.ask("Robin gave me 555-201-3344, should I call? Maya thinks so")
+    sent = _first_turn(client.requests[2])
+    assert "[MATCH] gave me [PHONE_1], should I call? [NAME_1] thinks so" in sent
+    assert "Robin" not in sent and "555" not in sent and "Maya" not in sent
+    assert report.answer == "Call 555-201-3344 if Robin means it, and ask Maya."
+
+
+def test_a_saved_notice_leads_every_answer():
+    (first, _), _ = _chat_pressure()
+    session, _ = _scripted_chat(_final(_answer()), _final(NO_FLAGS), _final(_answer()))
+    session.escalation = first.escalation
+    assert session.ask("one").escalation == first.escalation
+    assert session.ask("two").escalation == first.escalation
+
+
+def test_a_silent_match_is_refused_before_anything_is_sent():
+    silent = Conversation("Robin", "Sam", [Message(Role.OWNER, "hello?", "Sam")])
+    with pytest.raises(ValueError, match="no messages"):
+        Chat(silent, settings=Settings(), client=Scripted())
+    session, client = _scripted_chat()
+    with pytest.raises(ValueError, match="Ask a question"):
+        session.ask("  ")
+    assert client.requests == []
+
+
+# -- recording a chat -------------------------------------------------------------
+
+
+def test_ask_cannot_be_recorded_with_follow_ups(tmp_path, capsys):
+    args = ["record", "ask", PRESSURE, str(tmp_path / "x.json"), "--question", "a"]
+    assert recording_main([*args, "--question", "b"]) == 2
+    assert "record a chat for follow-ups" in capsys.readouterr().err
+
+
+# -- the command line -------------------------------------------------------------
+
+
+def _stdin(monkeypatch, text: str) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(text))
+
+
+def test_cli_chat_shows_the_notice_in_full_once(cli, capsys, monkeypatch):
+    cli("chat_pressure")
+    _stdin(monkeypatch, f"{PRESSURE_QUESTION}\n\n{FOLLOW_UP}\n")
+    assert main(["chat", PRESSURE]) == 0
+    captured = capsys.readouterr()
+    assert captured.out.count("You do not have to share your location") == 1
+    assert captured.out.count("!! Something in Casey's messages is serious") == 2
+    assert " ".join(captured.out.split()).count(STILL_APPLIES) == 1
+    assert captured.err.startswith("confidant: 6 calls used ")
+    # Piped input gets no prompt and no greeting.
+    assert "> " not in captured.err and "Ctrl-D" not in captured.err
+
+
+def test_cli_chat_json_is_one_answer_per_line(cli, capsys, monkeypatch):
+    cli("chat_pressure")
+    _stdin(monkeypatch, f"{PRESSURE_QUESTION}\n{FOLLOW_UP}\n")
+    assert main(["chat", PRESSURE, "--json"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert [json.loads(line)["question"] for line in lines] == [PRESSURE_QUESTION, FOLLOW_UP]
+
+
+def test_cli_chat_stops_at_a_quit_word(cli, capsys, monkeypatch):
+    client = cli("ask_pressure")
+    _stdin(monkeypatch, f"{PRESSURE_QUESTION}\nQuit\n{FOLLOW_UP}\n")
+    assert main(["chat", PRESSURE]) == 0
+    assert client.remaining == 0
+    assert "Casey asked for your location" in capsys.readouterr().out
+
+
+def test_cli_chat_goes_on_after_a_question_fails(cli, capsys, monkeypatch):
+    refusal = SimpleNamespace(
+        stop_reason="refusal",
+        stop_details=SimpleNamespace(category=None, explanation="not this one"),
+        parsed_output=None,
+    )
+    client = Scripted(refusal, _final(_answer("They do ask.")), _final(NO_FLAGS))
+    monkeypatch.setattr("confidant.client.build_client", lambda *_: client)
+    _stdin(monkeypatch, "first\nsecond\n")
+    assert main(["chat", SAMPLE]) == 0
+    captured = capsys.readouterr()
+    assert "not this one" in captured.err
+    assert captured.out.startswith("They do ask.")
+
+
+def test_cli_chat_about_someone_saved(cli, capsys, monkeypatch):
+    assert main(["add", "Casey", PRESSURE]) == 0
+    capsys.readouterr()
+    cli("chat_pressure")
+    _stdin(monkeypatch, f"{PRESSURE_QUESTION}\n{FOLLOW_UP}\n")
+    assert main(["chat", "Casey"]) == 0
+    assert "your friends again?" in capsys.readouterr().out
+
+
+def test_readme_chat_example_matches_what_the_cli_prints(cli, capsys, monkeypatch):
+    cli("chat_pressure")
+    _stdin(monkeypatch, f"{PRESSURE_QUESTION}\n{FOLLOW_UP}\n")
+    assert main(["chat", PRESSURE]) == 0
+    captured = capsys.readouterr()
+    readme = README.read_text(encoding="utf-8")
+    start = readme.index("> And what about when I went out with my friends?\n```\n\n")
+    block = readme[start:].split("```\n", 3)[2]
+    second = captured.out.split("\n\n!! ", 1)[1]
+    assert "!! " + second.rstrip("\n") + "\n" == block
     assert captured.err.strip() in readme

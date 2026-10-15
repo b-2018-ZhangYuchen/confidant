@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. A chat of two questions about the pressure transcript. The first is ask_pressure exactly; the follow-up searches once and answers without a second red-flag check, since the chat already ran one.",
+  "source": {
+    "analysis": "chat",
+    "transcript": "examples/pressure_chat.txt",
+    "questions": "Casey says everyone shares their location. Is that normal?\nAnd what about when I went out with my friends?",
+    "now": "2026-04-12T10:00"
+  },
+  "request": {
+    "schema": "AgentAnswer",
+    "model": "claude-opus-5",
+    "system_sha256": "2f27df22d40a88ba84db693a3460acbfeb202ffedd5af3a940396cd723aa6e79",
+    "messages_sha256": "3df860dc42c80c24ca7dbca81d4384ea559e92d824f721cdf54e04634fc8d040"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "answer": "Some couples do share locations, usually well into a relationship and by choice on both sides. That is not what happened here. [MATCH] asked for your location whenever you are out, and when you said you were not comfortable, answered with \"everyone does it\" instead of letting it go. The next night they asked who you were with just before midnight. Asking to keep track of where you are, and pressing after a no, is the part worth taking seriously, whatever other people do. You were right to say no.",
+      "evidence": [
+        {
+          "quote": "send me your location next time you're out, I like knowing where you are",
+          "why_it_matters": "An ongoing request to know where [OWNER] is, not a one-off meeting point."
+        },
+        {
+          "quote": "come on, it's not a big deal. everyone does it",
+          "why_it_matters": "The reply to [OWNER]'s no: it presses instead of accepting it."
+        },
+        {
+          "quote": "I need to know where you are at all times",
+          "why_it_matters": "Says outright that the request is about constant tracking."
+        }
+      ],
+      "confidence": "medium",
+      "caveat": "This is ten messages over three days; it shows what [MATCH] asked for, not why."
+    },
+    "usage": {
+      "input_tokens": 1544,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1630,
+      "output_tokens": 512
+    }
+  }
+}

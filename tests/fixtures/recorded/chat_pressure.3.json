@@ -1,0 +1,93 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. A chat of two questions about the pressure transcript. The first is ask_pressure exactly; the follow-up searches once and answers without a second red-flag check, since the chat already ran one.",
+  "source": {
+    "analysis": "chat",
+    "transcript": "examples/pressure_chat.txt",
+    "questions": "Casey says everyone shares their location. Is that normal?\nAnd what about when I went out with my friends?",
+    "now": "2026-04-12T10:00"
+  },
+  "request": {
+    "schema": "FlagScan",
+    "model": "claude-opus-5",
+    "system_sha256": "14b605d5bf217b2b64b0fccf7aebd4ba9be210eaeebc2025a641ed4f4599cb46",
+    "messages_sha256": "1f081a2c5f8cc3317156759061e614af615a86d1790b7661fb9248fd31d947cb"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "flags": [
+        {
+          "category": "monitoring",
+          "severity": "danger",
+          "behavior": "Asked [OWNER] to send their location whenever they are out, pressed after [OWNER] declined, and later asked who [OWNER] was with just before midnight.",
+          "evidence": [
+            {
+              "quote": "send me your location next time you're out, I like knowing where you are",
+              "why_it_matters": "Asks for ongoing access to where [OWNER] is, not a one-off meeting point."
+            },
+            {
+              "quote": "come on, it's not a big deal. everyone does it",
+              "why_it_matters": "Pushes past [OWNER]'s explicit discomfort instead of accepting it."
+            },
+            {
+              "quote": "who are you with right now",
+              "why_it_matters": "Checks up on [OWNER]'s company while [OWNER] is out with friends."
+            }
+          ],
+          "innocent_reading": null
+        },
+        {
+          "category": "isolation",
+          "severity": "danger",
+          "behavior": "Met [OWNER]'s plans with friends by saying the friends dislike [MATCH] and that the time should be spent with [MATCH] instead.",
+          "evidence": [
+            {
+              "quote": "your friends again? they don't even like me",
+              "why_it_matters": "Frames [OWNER]'s friends as opposed to [MATCH]."
+            },
+            {
+              "quote": "you should be spending that time with me",
+              "why_it_matters": "Casts time with friends as time owed to [MATCH]."
+            }
+          ],
+          "innocent_reading": null
+        },
+        {
+          "category": "guilt_or_blame",
+          "severity": "concern",
+          "behavior": "When [OWNER] replied the next morning, [MATCH] framed the gap as [OWNER] caring less.",
+          "evidence": [
+            {
+              "quote": "I guess I just care more than you do. whatever",
+              "why_it_matters": "Turns an ordinary overnight gap into a measure of [OWNER]'s feelings."
+            }
+          ],
+          "innocent_reading": "[MATCH] may have felt ignored overnight and said so clumsily."
+        },
+        {
+          "category": "boundary_pushing",
+          "severity": "concern",
+          "behavior": "Dismissed [OWNER]'s no about sharing a location as unreasonable.",
+          "evidence": [
+            {
+              "quote": "it's no big deal, everybody shares their location",
+              "why_it_matters": "Treats a stated boundary as something to argue away."
+            }
+          ],
+          "innocent_reading": "[MATCH] may genuinely think location sharing is routine."
+        }
+      ],
+      "summary": "[MATCH] asks for [OWNER]'s location, presses after [OWNER] declines, and treats time with friends as time taken from [MATCH].",
+      "confidence": "medium"
+    },
+    "usage": {
+      "input_tokens": 327,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1052,
+      "output_tokens": 1388
+    }
+  }
+}

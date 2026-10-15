@@ -251,3 +251,10 @@ def test_readme_redact_example_matches_the_cli(capsys):
     documented = readme[readme.index(marker) + len(marker) :].split("\n```", 1)[0]
     assert main(["redact", "examples/details_chat.txt"]) == 0
     assert capsys.readouterr().out == documented + "\n"
+
+
+def test_a_later_note_shares_the_key_and_extends_it():
+    result = redact(convo("text (555) 010-4477"))
+    note = result.redact_note("is (555) 010-4477 the same as 555-010-9900?")
+    assert note == "is [PHONE_1] the same as [PHONE_2]?"
+    assert result.restore_text(note) == "is (555) 010-4477 the same as 555-010-9900?"
