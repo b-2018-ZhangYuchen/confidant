@@ -343,7 +343,7 @@ def test_help_names_comfort(capsys):
         main(["--help"])
     out = capsys.readouterr().out
     assert "confidant comfort examples/faded_chat.txt" in out
-    assert "draft, comfort, and profile --update" in out
+    assert "draft, comfort, ask, and profile --update" in out
 
 
 def test_readme_comfort_example_matches_what_the_cli_prints(capsys, answer_with):

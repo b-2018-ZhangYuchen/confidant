@@ -4,17 +4,21 @@ Prompts are the most load-bearing and least reviewable part of a project like th
 they live apart from the code that calls them rather than buried in a function body.
 """
 
+from confidant.prompts.agent import AGENT_SYSTEM, TOOL_DESCRIPTIONS, build_agent_request
 from confidant.prompts.comfort import COMFORT_SYSTEM, build_comfort_request
 from confidant.prompts.draft import DRAFT_SYSTEM, TONES, build_draft_request
 from confidant.prompts.flags import FLAGS_SYSTEM, build_flags_request
 from confidant.prompts.personality import PERSONALITY_SYSTEM, build_personality_request
 
 __all__ = [
+    "AGENT_SYSTEM",
     "COMFORT_SYSTEM",
     "DRAFT_SYSTEM",
     "FLAGS_SYSTEM",
     "PERSONALITY_SYSTEM",
     "TONES",
+    "TOOL_DESCRIPTIONS",
+    "build_agent_request",
     "build_comfort_request",
     "build_draft_request",
     "build_flags_request",

@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. A question the model answers from the messages alone, without calling check_red_flags, so ask runs the check afterwards (a copy of flags_sample).",
+  "source": {
+    "analysis": "ask",
+    "transcript": "examples/sample_chat.txt",
+    "question": "Does Robin ever ask about my life, or is it all them?",
+    "now": "2026-03-06T09:00"
+  },
+  "request": {
+    "schema": "AgentAnswer",
+    "model": "claude-opus-5",
+    "system_sha256": "2f27df22d40a88ba84db693a3460acbfeb202ffedd5af3a940396cd723aa6e79",
+    "messages_sha256": "097cac2d344e03dca1c69dc6e5f723e4f92997c17ef6a5db2bb4701655f0bcbd"
+  },
+  "response": {
+    "stop_reason": "tool_use",
+    "stop_details": null,
+    "output": null,
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_hand_01",
+        "name": "read_messages",
+        "input": {
+          "first": 1,
+          "last": 17
+        }
+      }
+    ],
+    "usage": {
+      "input_tokens": 196,
+      "cache_creation_input_tokens": 1630,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 58
+    }
+  }
+}

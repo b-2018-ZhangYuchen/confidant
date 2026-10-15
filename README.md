@@ -41,6 +41,7 @@ Early and honest about it. Working today:
 | ✅ | Crisis resources for where you are — `--region` lists the emergency number and the right support lines under any safety notice |
 | ✅ | An eval set — fictional transcripts with the findings a good read should contain, scored locally so prompt changes can be measured |
 | ✅ | `evals compare` — which checks a prompt change won and lost, with guard checks that fail the comparison whatever the score |
+| ✅ | `confidant ask` — one question, and Claude decides what to look at: it searches and reads the transcript and runs the personality read or red-flag check as tools, with every quote checked and the red-flag check run whatever was asked |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -104,7 +105,7 @@ Sam <-> Robin
   last message     2026-03-05 21:36
 ```
 
-While `analyze`, `flags`, `draft`, or `comfort` is waiting on Claude, a single line on stderr says
+While `analyze`, `flags`, `draft`, `comfort`, or `ask` is waiting on Claude, a single line on stderr says
 what stage it has reached, and rewrites itself as it goes:
 
 ```
@@ -543,9 +544,76 @@ also checked on your machine for the plain ways of saying it, so the notice does
 hang on one answer from the model. `--what` is redacted with the transcript before
 anything is sent.
 
+### Asking a question
+
+The other commands each answer a fixed question. `confidant ask` takes yours, and
+Claude decides what it needs to look at to answer it. It has tools rather than the
+transcript: it can search the messages, read a stretch of them by number, see the
+counts and timing, check whose turn it is, and run the full personality read or
+red-flag check when the question calls for one. Give it a transcript or the name of
+someone saved:
+
+```bash
+confidant ask examples/pressure_chat.txt \
+    "Casey says everyone shares their location. Is that normal?"
+```
+
+prints
+
+```
+!! Something in Casey's messages is serious: tracking where you are and pressure to pull
+   away from friends or family.
+
+   - You do not have to share your location or account for where you are. If you have
+     already shared it in an app, you can turn that off without explaining.
+   - Keep your plans with friends and family. They are the people to talk this through
+     with.
+   - You do not owe them a reply, and you do not have to decide anything right away.
+     Talk it through with someone you trust first.
+   - If you ever feel physically unsafe, call your local emergency number.
+
+   To list emergency and support numbers here, pass --region with your country (US, GB,
+   AU, ...) or set CONFIDANT_REGION. findahelpline.com lists free support lines in most
+   countries.
+
+Some couples do share locations, usually well into a relationship and by choice on both sides. That is not what happened here. Casey asked for your location whenever you are out, and when you said you were not comfortable, answered with "everyone does it" instead of letting it go. The next night they asked who you were with just before midnight. Asking to keep track of where you are, and pressing after a no, is the part worth taking seriously, whatever other people do. You were right to say no.
+
+FROM THE MESSAGES
+  "send me your location next time you're out, I like knowing where you are"
+    -> An ongoing request to know where Jordan is, not a one-off meeting point.
+  "come on, it's not a big deal. everyone does it"
+    -> The reply to Jordan's no: it presses instead of accepting it.
+
+Confidence: medium
+Caveat: This is ten messages over three days; it shows what Casey asked for, not why.
+Looked at: a search, the statistics, the red-flag check.
+(1 quote left out: not found in the transcript as written.)
+```
+
+followed on stderr by
+
+```
+confidant: 4 calls used 8,523 input tokens (4,312 read from the cache, 1,630 written to it) and 2,135 output tokens, about $0.079.
+```
+
+(The hand-written recordings the tests use, not a live call; the chat is fictional.)
+Here Claude searched for where location came up, looked at the statistics, and ran the
+red-flag check, which found danger-tier behavior, so the fixed safety notice goes
+first, as it does everywhere else. The third quote it gave was a paraphrase rather than
+something Casey wrote, so it was left out, and the answer says so.
+
+Some things do not depend on what Claude chooses. The red-flag check always runs: if
+the question did not lead Claude to it, it runs after the answer, because a question
+about where to go for dinner can still be about someone who has been tracking you. Each
+check runs at most once per question, however often Claude asks for it, so you are
+never billed twice for the same read. Every tool works on the redacted transcript, so
+nothing Claude is shown along the way carries a name or number the first request did
+not, and your question is redacted with the same placeholders. After eight rounds of
+tools without an answer, it stops and says so rather than running up a bill.
+
 ### What gets sent
 
-Before `analyze`, `flags`, `draft`, or `comfort` builds a request, the transcript is redacted on your machine.
+Before `analyze`, `flags`, `draft`, `comfort`, or `ask` builds a request, the transcript is redacted on your machine.
 Both names become `[OWNER]` and `[MATCH]`; phone numbers, long account-like numbers,
 email addresses, street addresses, links, and social handles become numbered
 placeholders. The same detail always gets the same placeholder, so the model can still
@@ -613,8 +681,8 @@ Your chat history is about as private as data gets, and this repo is built aroun
   instead of leaving them recoverable in the file. It holds the conversations as you
   wrote them — redaction happens on the way to the API, not on the way to disk — and the
   reads `profile --update` saves, with names put back, which `remove` overwrites too.
-- `confidant analyze`, `confidant flags`, `confidant draft`, `confidant comfort`, and
-  `confidant profile --update` send the redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
+- `confidant analyze`, `confidant flags`, `confidant draft`, `confidant comfort`,
+  `confidant ask`, and `confidant profile --update` send the redacted transcript to the Anthropic API and nothing else — no telemetry, no analytics, no third parties. Names and contact
   details are replaced before the request is built (see [What gets sent](#what-gets-sent)).
   Confidant's own instructions are marked for prompt caching, so a `profile --update`
   that reads several conversations pays full price for them once; the transcript is
@@ -627,7 +695,7 @@ from:
 
 | Variable | Default | |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, `draft`, `comfort`, and `profile --update`; nothing else uses it. |
+| `ANTHROPIC_API_KEY` | — | Needed for `analyze`, `flags`, `draft`, `comfort`, `ask`, and `profile --update`; nothing else uses it. |
 | `CONFIDANT_MODEL` | `claude-opus-5` | |
 | `CONFIDANT_EFFORT` | `high` | How hard Claude thinks: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `CONFIDANT_MAX_TOKENS` | `16000` | Raise it if a long transcript's report comes back cut off. |
@@ -670,6 +738,12 @@ python -m confidant.recording record flags examples/pressure_chat.txt \
 # Re-fingerprint a hand-written recording, after reading it against the new prompt.
 python -m confidant.recording stamp tests/fixtures/recorded/flags_pressure.json
 ```
+
+`confidant ask` makes several calls, one per round of tools plus any check it runs, so
+its recordings come in numbered sets — `ask_pressure.json`, `ask_pressure.2.json`, and
+so on, in call order. A round that asked for tools keeps the content blocks the next
+request quotes back. Replay, record, and stamp a set by its first file; `record ask`
+takes `--question`, and `--now` for the moment the keep-in-touch tool counts from.
 
 A recording also keeps the response's token counts, so the usage line runs for real in a
 replay too. They are not part of the fingerprint: they say what a call cost, not what it

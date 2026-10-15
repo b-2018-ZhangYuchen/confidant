@@ -20,6 +20,13 @@ Two kinds of recording live in ``tests/fixtures/recorded``:
   ``python -m confidant.recording stamp`` after someone has read the response and agrees
   it still fits the new prompt.
 
+A tool-using analysis (``ask``) makes several calls, and a run of it is a *set* of
+recordings: ``ask_pressure.json`` for the first call, then ``ask_pressure.2.json``,
+``ask_pressure.3.json`` and so on, the numbering ``RecordingClient`` already gives a
+second call. A recording of a round that asked for tools keeps the response's content
+blocks, since the next request quotes them back. Replaying or stamping the first file of
+a set takes the rest with it, in order.
+
 A recording may also hold the response's token usage. It is not part of the fingerprint:
 it says what the call cost, not what the model was asked, and a hand-written recording's
 usage is an illustration of a plausible call rather than a measurement.
@@ -34,20 +41,23 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from confidant.agent import ask
 from confidant.analysis.comfort import comfort
 from confidant.analysis.draft import draft_reply
 from confidant.analysis.flags import analyze_flags
 from confidant.analysis.personality import analyze_personality
-from confidant.client import ModelRefusal, build_client
+from confidant.client import ModelRefusal, block_param, build_client
 from confidant.config import Settings
 from confidant.ingest.transcript import read_transcript
 
@@ -61,6 +71,7 @@ __all__ = [
     "RecordingError",
     "ReplayClient",
     "StaleRecording",
+    "recording_set",
     "replay",
     "run_analysis",
 ]
@@ -104,11 +115,19 @@ class Fingerprint:
 
     @classmethod
     def of(cls, request: dict[str, Any]) -> Fingerprint:
-        """Fingerprint the keyword arguments of a ``messages.stream`` call."""
+        """Fingerprint the keyword arguments of a ``messages.stream`` call.
+
+        Tool definitions count as part of the system prompt: a tool's description is
+        instructions to the model like any other. A request without tools hashes exactly
+        as it did before tools existed, so older recordings stay current.
+        """
         schema = request["output_format"]
+        system = _system_text(request["system"])
+        if request.get("tools"):
+            system += "\n" + json.dumps(request["tools"], sort_keys=True)
         return cls(
             schema=schema.__name__,
-            system_sha256=_sha256(_system_text(request["system"])),
+            system_sha256=_sha256(system),
             # sort_keys so that a dict built in a different order is the same request.
             messages_sha256=_sha256(json.dumps(request["messages"], sort_keys=True)),
         )
@@ -142,6 +161,9 @@ class Recording:
     note: str | None = None
     usage: dict[str, int] | None = None
     """The response's ``usage``, in the API's field names, if it was kept."""
+
+    content: list[dict[str, Any]] | None = None
+    """The response's content blocks, kept only for a round that asked for tools."""
 
     path: Path | None = None
 
@@ -177,6 +199,7 @@ class Recording:
                 source=data.get("source", {}),
                 note=data.get("note"),
                 usage=response.get("usage"),
+                content=response.get("content"),
                 path=path,
             )
         except KeyError as exc:
@@ -199,6 +222,8 @@ class Recording:
             "stop_details": self.stop_details,
             "output": self.output,
         }
+        if self.content is not None:
+            data["response"]["content"] = self.content
         if self.usage is not None:
             data["response"]["usage"] = self.usage
         # ensure_ascii off so a quote with a curly apostrophe reads as the model wrote it.
@@ -223,10 +248,12 @@ class Recording:
         parsed = schema.model_validate(self.output) if self.output is not None else None
         details = SimpleNamespace(**self.stop_details) if self.stop_details else None
         usage = SimpleNamespace(**self.usage) if self.usage is not None else None
+        content = [SimpleNamespace(**block) for block in self.content or []]
         return SimpleNamespace(
             stop_reason=self.stop_reason,
             stop_details=details,
             parsed_output=parsed,
+            content=content,
             model=self.model,
             usage=usage,
         )
@@ -253,6 +280,9 @@ class Recording:
 
     def _remedy(self) -> str:
         where = self.path or "<recording>"
+        if self.path is not None and _NUMBERED.search(self.path.stem):
+            # Part of a set: it is made and stamped through the set's first file.
+            where = self.path.with_name(_NUMBERED.sub("", self.path.stem) + self.path.suffix)
         analysis = self.source.get("analysis", "<analysis>")
         transcript = self.source.get("transcript", "<transcript>")
         fix = (
@@ -363,9 +393,14 @@ class RecordingClient:
             source=self._source,
             note=self._note,
             usage=_usage_dict(getattr(response, "usage", None)),
+            content=(
+                [block_param(block) for block in response.content]
+                if response.stop_reason == "tool_use"
+                else None
+            ),
         )
         # A second call in one run gets its own numbered file rather than overwriting the
-        # first; today every analysis makes exactly one.
+        # first. Only `ask` makes more than one.
         path = self._path
         if self.saved:
             path = path.with_name(f"{path.stem}.{len(self.saved) + 1}{path.suffix}")
@@ -432,11 +467,24 @@ ANALYSES: dict[str, Callable[..., Any]] = {
     "flags": analyze_flags,
     "draft": draft_reply,
     "comfort": comfort,
+    "ask": ask,
 }
 
 # Options an analysis takes beyond the transcript. A recording keeps them in its source,
-# since a draft in one tone answers a different request from a draft in another.
-OPTIONS: dict[str, tuple[str, ...]] = {"draft": ("tone", "say"), "comfort": ("what",)}
+# since a draft in one tone answers a different request from a draft in another. `ask`
+# keeps the moment it was asked at too: the keep-in-touch tool counts days from it, so a
+# replay without it would be a different request every morning.
+OPTIONS: dict[str, tuple[str, ...]] = {
+    "draft": ("tone", "say"),
+    "comfort": ("what",),
+    "ask": ("question", "now"),
+}
+
+# Options stored as text that the analysis takes as something else.
+_PARSE: dict[str, Callable[[str], Any]] = {"now": datetime.fromisoformat}
+
+# The ".2" in "ask_pressure.2.json": a later call in a set.
+_NUMBERED = re.compile(r"\.(\d+)$")
 
 
 def run_analysis(
@@ -455,17 +503,33 @@ def run_analysis(
     if unknown:
         raise RecordingError(f"{analysis} does not take {', '.join(sorted(unknown))}")
     conversation = read_transcript(transcript)
+    parsed = {k: _PARSE[k](v) if k in _PARSE else v for k, v in options.items()}
     # Settings() rather than from_env(): a replay must not change with CONFIDANT_MODEL.
     return ANALYSES[analysis](
-        conversation, settings=settings or Settings(), client=client, **options
+        conversation, settings=settings or Settings(), client=client, **parsed
     )
 
 
-def replay(recording: Recording | str | Path, *, strict: bool = True) -> Any:
-    """Replay a recording through the analysis it came from, and return the report."""
+def recording_set(recording: Recording | str | Path) -> list[Recording]:
+    """``recording`` and the numbered recordings that follow it, in call order."""
     if not isinstance(recording, Recording):
         recording = Recording.load(recording)
-    return _run_source(recording, ReplayClient(recording, strict=strict))
+    path = recording.path
+    if path is None:
+        return [recording]
+    if _NUMBERED.search(path.stem):
+        first = _NUMBERED.sub("", path.stem) + path.suffix
+        raise RecordingError(f"{path} is part of a set; use the set's first file, {first}")
+    found = [recording]
+    while (later := path.with_name(f"{path.stem}.{len(found) + 1}{path.suffix}")).exists():
+        found.append(Recording.load(later))
+    return found
+
+
+def replay(recording: Recording | str | Path, *, strict: bool = True) -> Any:
+    """Replay a recording (or a set) through the analysis it came from; return the report."""
+    recordings = recording_set(recording)
+    return _run_source(recordings[0], ReplayClient(*recordings, strict=strict))
 
 
 def _run_source(recording: Recording, client: ReplayClient) -> Any:
@@ -509,6 +573,8 @@ def _record(
     _check_fictional(transcript)
     settings = Settings.from_env()
     options = options or {}
+    if analysis == "ask":
+        options.setdefault("now", datetime.now().isoformat(timespec="minutes"))
     recorder = RecordingClient(
         build_client(settings),
         out,
@@ -524,16 +590,18 @@ def _record(
 
 
 def _stamp(path: Path) -> list[str]:
-    """Re-fingerprint a hand-written recording against the current prompts."""
-    recording = Recording.load(path)
-    if recording.provenance != "hand-written":
-        raise RecordingError(
-            f"{path} was recorded from a live call. Its response answers the old prompt, so "
-            "re-stamping it would make it claim something that never happened. Record it again."
-        )
-    client = ReplayClient(recording, strict=False)
+    """Re-fingerprint a hand-written recording (or set) against the current prompts."""
+    recordings = recording_set(path)
+    for recording in recordings:
+        if recording.provenance != "hand-written":
+            raise RecordingError(
+                f"{recording.path} was recorded from a live call. Its response answers the "
+                "old prompt, so re-stamping it would make it claim something that never "
+                "happened. Record it again."
+            )
+    client = ReplayClient(*recordings, strict=False)
     try:
-        _run_source(recording, client)
+        _run_source(recordings[0], client)
     except RecordingError:
         raise
     except (ModelRefusal, RuntimeError):
@@ -541,12 +609,22 @@ def _stamp(path: Path) -> list[str]:
         # made. A response that no longer fits the schema raises ValidationError instead,
         # and that should stop the stamp: the fix is to edit the response, not the hash.
         pass
-    [request] = client.requests
-    fresh = Fingerprint.of(request)
-    changed = recording.fingerprint.differences(fresh)
-    recording.fingerprint = fresh
-    recording.save(path)
-    return changed
+    if len(client.requests) != len(recordings):
+        raise RecordingError(
+            f"{path} is a set of {len(recordings)} recordings, but replaying it made "
+            f"{len(client.requests)} calls. The responses no longer fit the code's path "
+            "through them; edit them before stamping."
+        )
+    changes: list[str] = []
+    for recording, request in zip(recordings, client.requests, strict=True):
+        fresh = Fingerprint.of(request)
+        changed = recording.fingerprint.differences(fresh)
+        if len(recordings) > 1:
+            changed = [f"{recording.path.name}: {change}" for change in changed]
+        changes += changed
+        recording.fingerprint = fresh
+        recording.save(recording.path)
+    return changes
 
 
 def main(argv: Iterable[str] | None = None) -> int:
@@ -564,6 +642,10 @@ def main(argv: Iterable[str] | None = None) -> int:
     record.add_argument("--tone", help="For draft: the tone to draft in.")
     record.add_argument("--say", help="For draft: what the owner wants to say.")
     record.add_argument("--what", help="For comfort: what happened, in the owner's words.")
+    record.add_argument("--question", help="For ask: the question.")
+    record.add_argument(
+        "--now", help="For ask: the moment to answer as of, e.g. 2026-04-12T10:00 (default: now)."
+    )
 
     stamp = sub.add_parser(
         "stamp", help="Re-fingerprint a hand-written recording after a prompt change."

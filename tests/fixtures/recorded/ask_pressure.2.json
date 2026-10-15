@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. A question about location sharing: the model searches and reads the statistics, runs the red-flag check (a copy of flags_pressure), and answers. The answer's third quote is a deliberate paraphrase that grounding has to drop.",
+  "source": {
+    "analysis": "ask",
+    "transcript": "examples/pressure_chat.txt",
+    "question": "Casey says everyone shares their location. Is that normal?",
+    "now": "2026-04-12T10:00"
+  },
+  "request": {
+    "schema": "AgentAnswer",
+    "model": "claude-opus-5",
+    "system_sha256": "2f27df22d40a88ba84db693a3460acbfeb202ffedd5af3a940396cd723aa6e79",
+    "messages_sha256": "e5a9ac79fa511c65b0c889e3230d0b0307a7d047e545284991340d137683a0c9"
+  },
+  "response": {
+    "stop_reason": "tool_use",
+    "stop_details": null,
+    "output": null,
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_hand_03",
+        "name": "check_red_flags",
+        "input": {}
+      }
+    ],
+    "usage": {
+      "input_tokens": 498,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 1630,
+      "output_tokens": 71
+    }
+  }
+}

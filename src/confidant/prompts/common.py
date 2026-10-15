@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from confidant.models import Conversation, Role
+from confidant.models import Conversation, Message, Role
 
 REDACTION_NOTE = """\
 Before this transcript reached you, names, phone numbers, email and street addresses, \
@@ -16,14 +16,8 @@ for an address, or sending a number unprompted, is behavior you can describe.\
 """
 
 
-def render_conversation(conversation: Conversation) -> list[str]:
-    """The header and tagged transcript block, as lines for a user turn.
-
-    Every analyzer sees the conversation in exactly this shape, so a finding from one
-    can be compared with a finding from another without wondering whether they were
-    shown different things. ``conversation`` is expected to be redacted already, so the
-    sender's name is left off each line: it would only repeat the tag.
-    """
+def render_header(conversation: Conversation) -> list[str]:
+    """Who is who, how many messages, and the cheap signals, as lines for a user turn."""
     lines = [
         f"Owner (the person I am helping): {conversation.owner_name}",
         f"Match (the person to analyze): {conversation.match_name}",
@@ -41,13 +35,28 @@ def render_conversation(conversation: Conversation) -> list[str]:
             f"Average message length: match writes {ratio:.2f} words per owner word "
             f"(context only — do not over-read it)"
         )
+    return lines
 
+
+def render_line(message: Message) -> str:
+    """One message as every prompt shows it: optional timestamp, tag, text."""
+    tag = "OWNER" if message.role is Role.OWNER else "MATCH"
+    stamp = f"[{message.timestamp:%Y-%m-%d %H:%M}] " if message.timestamp else ""
+    body = message.text.replace("\n", "\n    ")
+    return f"{stamp}{tag}: {body}"
+
+
+def render_conversation(conversation: Conversation) -> list[str]:
+    """The header and tagged transcript block, as lines for a user turn.
+
+    Every analyzer sees the conversation in exactly this shape, so a finding from one
+    can be compared with a finding from another without wondering whether they were
+    shown different things. ``conversation`` is expected to be redacted already, so the
+    sender's name is left off each line: it would only repeat the tag.
+    """
+    lines = render_header(conversation)
     lines.append("")
     lines.append("--- TRANSCRIPT ---")
-    for message in conversation:
-        tag = "OWNER" if message.role is Role.OWNER else "MATCH"
-        stamp = f"[{message.timestamp:%Y-%m-%d %H:%M}] " if message.timestamp else ""
-        body = message.text.replace("\n", "\n    ")
-        lines.append(f"{stamp}{tag}: {body}")
+    lines.extend(render_line(message) for message in conversation)
     lines.append("--- END TRANSCRIPT ---")
     return lines

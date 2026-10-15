@@ -6,6 +6,7 @@ confidant analyze  examples/sample_chat.txt      # calls Claude
 confidant flags    examples/sample_chat.txt      # calls Claude
 confidant draft    examples/sample_chat.txt      # calls Claude; or a saved name
 confidant comfort  examples/faded_chat.txt       # calls Claude; or a saved name
+confidant ask      examples/pressure_chat.txt "..."  # Claude, with tools; or a saved name
 
 confidant add      Robin examples/sample_chat.txt  # local store, no API call
 confidant list
@@ -27,11 +28,12 @@ from pathlib import Path
 import anthropic
 
 from confidant import __version__
+from confidant.agent import ask
 from confidant.analysis.comfort import comfort
 from confidant.analysis.draft import DEFAULT_TONE, draft_reply
 from confidant.analysis.flags import analyze_flags
 from confidant.analysis.personality import analyze_personality
-from confidant.client import IncompleteResponse, ModelRefusal
+from confidant.client import IncompleteResponse, ModelRefusal, ToolLoopError
 from confidant.config import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ConfigError, Settings
 from confidant.ingest.transcript import TranscriptError, read_transcript
 from confidant.models import Conversation, Role
@@ -203,6 +205,7 @@ _MODEL_ERRORS = (
     ConfigError,
     ModelRefusal,
     IncompleteResponse,
+    ToolLoopError,
     anthropic.APIError,
     KeyboardInterrupt,
     ValueError,
@@ -212,7 +215,7 @@ _MODEL_ERRORS = (
 def _model_failure(exc: BaseException, settings: Settings | None) -> tuple[int, str]:
     if isinstance(exc, ModelRefusal):
         return 3, str(exc)
-    if isinstance(exc, IncompleteResponse):
+    if isinstance(exc, IncompleteResponse | ToolLoopError):
         return 4, str(exc)
     if isinstance(exc, anthropic.APIError):
         return 4, _api_error(exc, settings or Settings())
@@ -329,7 +332,7 @@ def _thread_source(args: argparse.Namespace) -> tuple[Conversation, Escalation |
 
 
 def _run_on_thread(args: argparse.Namespace) -> int:
-    """``draft`` and ``comfort``: one model call on a transcript file or a saved thread."""
+    """``draft``, ``comfort``, and ``ask``: on a transcript file or a saved thread."""
     try:
         conversation, escalation = _thread_source(args)
     except UnknownPerson as exc:
@@ -346,7 +349,18 @@ def _run_on_thread(args: argparse.Namespace) -> int:
         settings = Settings.from_env()
         status = _status(args)
         with status or contextlib.nullcontext():
-            if args.command == "comfort":
+            if args.command == "ask":
+                # Passed in rather than applied afterwards, so the answer can say what it
+                # found and the notice still comes from one place.
+                report = ask(
+                    conversation,
+                    args.question,
+                    settings=settings,
+                    escalation=escalation,
+                    on_progress=status,
+                    on_usage=meter,
+                )
+            elif args.command == "comfort":
                 report = comfort(
                     conversation,
                     what=args.what,
@@ -369,7 +383,8 @@ def _run_on_thread(args: argparse.Namespace) -> int:
         _report_usage(meter)
         return code
 
-    report = report.model_copy(update={"escalation": escalation})
+    if args.command != "ask":
+        report = report.model_copy(update={"escalation": escalation})
     print(report.model_dump_json(indent=2) if args.json else report.to_text())
     _report_usage(meter)
     return 0
@@ -414,6 +429,7 @@ examples:
   confidant flags examples/pressure_chat.txt --json
   confidant draft examples/sample_chat.txt --tone playful
   confidant comfort examples/faded_chat.txt
+  confidant ask examples/pressure_chat.txt "should I be worried about the location thing?"
   confidant add Robin examples/sample_chat.txt
   confidant show Robin
   confidant profile Robin --update
@@ -424,13 +440,14 @@ examples:
 stats and redact never touch the network, and neither do add, list, show,
 remove, profile, timeline, and nudge, which keep people and their conversations
 in a local file.
-analyze, flags, draft, comfort, and profile --update send the redacted transcript
-to the Anthropic API and nowhere else, and end with a line on stderr saying how
+analyze, flags, draft, comfort, ask, and profile --update send the redacted
+transcript to the Anthropic API and nowhere else, and end with a line on stderr saying how
 many tokens they used and roughly what that cost.
 draft never sends a message: it prints suggestions and you do the rest.
 
 environment (or put these in .env):
-  ANTHROPIC_API_KEY     needed for analyze, flags, draft, comfort, and profile --update
+  ANTHROPIC_API_KEY     needed for analyze, flags, draft, comfort, ask, and
+                        profile --update
   CONFIDANT_DB          the local store, default ~/.confidant/confidant.db
   CONFIDANT_MODEL       default {DEFAULT_MODEL}
   CONFIDANT_EFFORT      low, medium, high (default), xhigh, or max
@@ -551,7 +568,26 @@ def _build_parser() -> argparse.ArgumentParser:
         help="What happened, in your words, e.g. 'they cancelled and went quiet'.",
     )
 
-    for sub in (draft, comfort_parser):
+    ask_parser = subcommands.add_parser(
+        "ask",
+        help="Ask Claude one question about someone, and let it decide what to look at.",
+        description=(
+            "Ask Claude one question about someone. Claude searches and reads the "
+            "transcript, and runs the personality read or the red-flag check when the "
+            "question needs them; every quote in the answer is checked against the "
+            "transcript, and the red-flag check always runs, so a safety notice never "
+            "depends on what was asked. Give a transcript file, or the name of someone "
+            "saved to ask about their most recent conversation."
+        ),
+        epilog=_FORMAT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ask_parser.add_argument("source", metavar="TRANSCRIPT_OR_NAME")
+    ask_parser.add_argument(
+        "question", help="What you want to know, e.g. 'have they ever asked about my day?'"
+    )
+
+    for sub in (draft, comfort_parser, ask_parser):
         sub.add_argument(
             "--owner", metavar="NAME", help="Your name in the transcript. Overrides '# owner:'."
         )
@@ -686,7 +722,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # Every command that can open with a safety notice. An unknown region is not an
     # error: someone at a bad moment who mistypes their country still gets the notice,
     # with a line saying there are no numbers on file for it.
-    for name in ("flags", "draft", "comfort", "profile", "timeline", "nudge"):
+    for name in ("flags", "draft", "comfort", "ask", "profile", "timeline", "nudge"):
         subcommands.choices[name].add_argument(
             "--region",
             metavar="COUNTRY",
@@ -742,7 +778,7 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_store_command(args)
     if args.command == "profile":
         return _run_profile(args)
-    if args.command in ("draft", "comfort"):
+    if args.command in ("draft", "comfort", "ask"):
         return _run_on_thread(args)
 
     try:

@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "provenance": "hand-written",
+  "note": "Hand-written: no API key was available. A question the model answers from the messages alone, without calling check_red_flags, so ask runs the check afterwards (a copy of flags_sample).",
+  "source": {
+    "analysis": "ask",
+    "transcript": "examples/sample_chat.txt",
+    "question": "Does Robin ever ask about my life, or is it all them?",
+    "now": "2026-03-06T09:00"
+  },
+  "request": {
+    "schema": "FlagScan",
+    "model": "claude-opus-5",
+    "system_sha256": "14b605d5bf217b2b64b0fccf7aebd4ba9be210eaeebc2025a641ed4f4599cb46",
+    "messages_sha256": "dde265e5315b0857a34fede00afb120669586004d932703c5f6f67f8259a2830"
+  },
+  "response": {
+    "stop_reason": "end_turn",
+    "stop_details": null,
+    "output": {
+      "flags": [],
+      "summary": "Nothing in [MATCH]'s messages rises to a red flag. When [OWNER] went quiet for two days, [MATCH] did not press or assign blame.",
+      "confidence": "medium"
+    },
+    "usage": {
+      "input_tokens": 509,
+      "cache_creation_input_tokens": 1052,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 806
+    }
+  }
+}

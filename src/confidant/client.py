@@ -6,6 +6,11 @@ cached, the response is streamed, it is validated against a Pydantic schema, wha
 used is reported (see :mod:`confidant.usage`), and a refusal is surfaced as an exception
 instead of quietly becoming an empty report.
 
+Given ``tools``, the same call becomes a loop: while the model asks for a tool, the tool
+is run here and its result sent back, and only the answer it finally writes is parsed.
+Every round goes through the same streaming, refusal check, and usage report as a single
+call, so an agent is not a second, less careful way of talking to the model.
+
 What gets cached, and what does not
 -----------------------------------
 
@@ -25,7 +30,8 @@ there would pay the cache-write premium on nearly every call and almost never be
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -39,8 +45,13 @@ from confidant.usage import Usage
 T = TypeVar("T", bound=BaseModel)
 
 __all__ = [
+    "DEFAULT_TOOL_ROUNDS",
     "IncompleteResponse",
     "ModelRefusal",
+    "Tool",
+    "ToolError",
+    "ToolLoopError",
+    "block_param",
     "build_client",
     "cached_system",
     "structured_call",
@@ -50,6 +61,10 @@ __all__ = [
 # as much to write, and the calls that share a prefix (one `profile --update`, or an
 # `analyze` and a `flags` run back to back) land minutes apart, not hours.
 _CACHE_CONTROL = {"type": "ephemeral"}
+
+# Enough for a careful answer that looks at the transcript, reads it, and checks a quote
+# or two; well short of a model that has lost the thread and is calling tools in circles.
+DEFAULT_TOOL_ROUNDS = 8
 
 
 class ModelRefusal(RuntimeError):
@@ -87,6 +102,66 @@ class IncompleteResponse(RuntimeError):
         else:
             detail = f"Claude stopped without returning a report (stop_reason={stop_reason!r})."
         super().__init__(detail)
+
+
+class ToolLoopError(RuntimeError):
+    """The model kept asking for tools past the limit, without ever answering."""
+
+    def __init__(self, rounds: int) -> None:
+        self.rounds = rounds
+        super().__init__(
+            f"Claude asked for {rounds} rounds of tools without settling on an answer. "
+            "Try asking a narrower question."
+        )
+
+
+class ToolError(Exception):
+    """A tool could not do what it was asked; the message goes back to the model.
+
+    Raised by a tool for problems the model can do something about (a line number past
+    the end, a check that declined). Anything else a tool raises is a bug, and propagates.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class Tool:
+    """Something the model may ask Confidant to do while it works out an answer."""
+
+    name: str
+    description: str
+    run: Callable[[dict[str, Any]], str]
+    input_schema: dict[str, Any] = field(
+        default_factory=lambda: {"type": "object", "properties": {}, "additionalProperties": False}
+    )
+
+    def param(self) -> dict[str, Any]:
+        """The tool as the API wants it described."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "input_schema": self.input_schema,
+        }
+
+
+def block_param(block: Any) -> dict[str, Any]:
+    """A response content block as it must be sent back in the next request.
+
+    Spelled out field by field rather than dumped: the SDK's parsed blocks carry extra
+    attributes (a text block's ``parsed_output``) that the API would reject, and thinking
+    blocks have to go back exactly as they came, signature included, or the loop breaks.
+    """
+    if isinstance(block, dict):
+        return block
+    kind = block.type
+    if kind == "thinking":
+        return {"type": "thinking", "thinking": block.thinking, "signature": block.signature}
+    if kind == "redacted_thinking":
+        return {"type": "redacted_thinking", "data": block.data}
+    if kind == "text":
+        return {"type": "text", "text": block.text}
+    if kind == "tool_use":
+        return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+    raise ValueError(f"Cannot send a {kind!r} block back to the model")
 
 
 def _credentials_available(settings: Settings) -> bool:
@@ -139,6 +214,8 @@ def structured_call(
     client: anthropic.Anthropic | None = None,
     on_progress: Callable[[Progress], None] | None = None,
     on_usage: Callable[[Usage], None] | None = None,
+    tools: Sequence[Tool] = (),
+    max_tool_rounds: int = DEFAULT_TOOL_ROUNDS,
 ) -> T:
     """Ask the model one question and get back a validated ``schema`` instance.
 
@@ -153,9 +230,73 @@ def structured_call(
     ``on_usage`` is handed the call's token usage as soon as the response is whole, before
     it is checked: a refusal or a cut-off answer is billed too. An answer whose stream
     breaks off mid-JSON never produces a final message, so its usage cannot be reported.
+    With tools, it is handed each round's usage in turn.
+
+    ``tools`` lets the model ask for things before it answers. A tool that raises
+    :class:`ToolError` has the message sent back as a failed result, so the model can try
+    something else; ``max_tool_rounds`` rounds of tool use without an answer raise
+    :class:`ToolLoopError`.
     """
     settings = settings or Settings.from_env()
     client = client or build_client(settings)
+    by_name = {tool.name: tool for tool in tools}
+    messages: list[dict[str, Any]] = [{"role": "user", "content": user_content}]
+
+    for _ in range(max_tool_rounds + 1):
+        response = _respond(
+            client, settings, schema, system, messages, tools, on_progress, on_usage
+        )
+        if response.stop_reason != "tool_use" or not tools:
+            break
+        messages.append(
+            {"role": "assistant", "content": [block_param(b) for b in response.content]}
+        )
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    _run_tool(by_name, block)
+                    for block in response.content
+                    if getattr(block, "type", None) == "tool_use"
+                ],
+            }
+        )
+    else:
+        raise ToolLoopError(max_tool_rounds)
+
+    parsed = response.parsed_output
+    if parsed is None:
+        raise IncompleteResponse(response.stop_reason, settings.max_tokens)
+    return parsed
+
+
+def _run_tool(tools: dict[str, Tool], block: Any) -> dict[str, Any]:
+    result: dict[str, Any] = {"type": "tool_result", "tool_use_id": block.id}
+    tool = tools.get(block.name)
+    if tool is None:
+        return result | {"content": f"There is no tool called {block.name!r}.", "is_error": True}
+    try:
+        return result | {"content": tool.run(dict(block.input or {}))}
+    except ToolError as exc:
+        return result | {"content": str(exc), "is_error": True}
+
+
+def _respond(
+    client: Any,
+    settings: Settings,
+    schema: type[T],
+    system: str,
+    messages: list[dict[str, Any]],
+    tools: Sequence[Tool],
+    on_progress: Callable[[Progress], None] | None,
+    on_usage: Callable[[Usage], None] | None,
+) -> Any:
+    """One request and its whole response, with usage reported and a refusal raised."""
+    extra: dict[str, Any] = {}
+    if tools:
+        # Only when there are tools, so a plain call's request (and the recordings
+        # fingerprinted from it) is exactly what it was before tools existed.
+        extra["tools"] = [tool.param() for tool in tools]
 
     # Streamed whether or not anyone is watching, so there is one code path. It also
     # keeps a raised CONFIDANT_MAX_TOKENS working: the SDK refuses a non-streaming
@@ -167,8 +308,11 @@ def structured_call(
             system=cached_system(system),
             thinking={"type": "adaptive"},
             output_config={"effort": settings.effort},
-            messages=[{"role": "user", "content": user_content}],
+            # A copy: the loop goes on appending to its own list, and the request that
+            # was sent should stay what it was.
+            messages=list(messages),
             output_format=schema,
+            **extra,
         ) as stream:
             if on_progress is not None:
                 tracker = ProgressTracker(on_progress)
@@ -194,8 +338,4 @@ def structured_call(
             category=getattr(details, "category", None),
             explanation=getattr(details, "explanation", None),
         )
-
-    parsed = response.parsed_output
-    if parsed is None:
-        raise IncompleteResponse(response.stop_reason, settings.max_tokens)
-    return parsed
+    return response

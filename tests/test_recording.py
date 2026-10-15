@@ -8,6 +8,7 @@ rendering. Only the SDK itself is replaced.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import socket
 from pathlib import Path
@@ -28,6 +29,7 @@ from confidant.recording import (
     RecordingError,
     ReplayClient,
     StaleRecording,
+    recording_set,
     replay,
     run_analysis,
 )
@@ -36,6 +38,8 @@ from confidant.recording import main as recording_main
 RECORDINGS = Path(__file__).parent / "fixtures" / "recorded"
 
 ALL_RECORDINGS = sorted(RECORDINGS.glob("*.json"))
+# The first file of each set; a later call in a set is replayed with the rest of it.
+FIRST_RECORDINGS = [p for p in ALL_RECORDINGS if not re.search(r"\.\d+$", p.stem)]
 
 
 # -- every recording in the repository ----------------------------------------
@@ -45,20 +49,23 @@ def test_there_are_recordings_to_replay():
     assert len(ALL_RECORDINGS) >= 5
 
 
-@pytest.mark.parametrize("path", ALL_RECORDINGS, ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", FIRST_RECORDINGS, ids=lambda p: p.stem)
 def test_every_recording_is_current_and_replays(path):
     # Fails with StaleRecording when a prompt changes without the recordings following.
-    recording = Recording.load(path)
-    assert "examples" in Path(recording.source["transcript"]).parts
-    assert recording.note, "say why the recording exists"
+    recordings = recording_set(path)
+    for recording in recordings:
+        assert "examples" in Path(recording.source["transcript"]).parts
+        assert recording.note, "say why the recording exists"
+    # The last call decides how the run ends.
+    recording = recordings[-1]
     if recording.stop_reason == "refusal":
         with pytest.raises(ModelRefusal):
-            replay(recording)
+            replay(path)
     elif recording.output is None:
         with pytest.raises(IncompleteResponse, match="cut off"):
-            replay(recording)
+            replay(path)
     else:
-        assert replay(recording) is not None
+        assert replay(path) is not None
 
 
 @pytest.mark.parametrize("path", ALL_RECORDINGS, ids=lambda p: p.stem)

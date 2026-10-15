@@ -369,4 +369,4 @@ def test_help_names_profile_and_its_network_use(capsys):
         main(["--help"])
     out = capsys.readouterr().out
     assert "confidant profile Robin --update" in out
-    assert "profile --update send the redacted transcript" in out
+    assert "profile --update send the redacted\ntranscript" in out
