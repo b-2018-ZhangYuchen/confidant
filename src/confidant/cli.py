@@ -37,7 +37,8 @@ from confidant.analysis.flags import analyze_flags
 from confidant.analysis.personality import analyze_personality
 from confidant.client import IncompleteResponse, ModelRefusal, ToolLoopError
 from confidant.config import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ConfigError, Settings
-from confidant.ingest.transcript import TranscriptError, read_transcript
+from confidant.ingest.exports import DateOrder, read_export
+from confidant.ingest.transcript import TranscriptError
 from confidant.models import Conversation, Role
 from confidant.nudge import build_nudge
 from confidant.profile import build_profile, read_conversation
@@ -58,6 +59,17 @@ from confidant.store import (
 )
 from confidant.timeline import Period, build_timeline
 from confidant.usage import UsageMeter
+
+
+def _read(path: str | Path, args: argparse.Namespace) -> Conversation:
+    """Read a transcript or a chat app's export, saying on stderr how it was read."""
+    imported = read_export(
+        path, owner=args.owner, match=args.match, dates=getattr(args, "dates", None)
+    )
+    note = imported.note()
+    if note is not None:
+        print(f"confidant: {path}: {note}", file=sys.stderr)
+    return imported.conversation
 
 
 def _describe(conversation: Conversation) -> str:
@@ -144,9 +156,7 @@ def _show_person(store: Store, name: str) -> str:
 def _add(store: Store, args: argparse.Namespace) -> str:
     # Parse everything before writing anything, so a typo in the third file does not
     # leave a person half-added with the first two.
-    parsed = [
-        read_transcript(path, owner=args.owner, match=args.match) for path in args.transcripts
-    ]
+    parsed = [_read(path, args) for path in args.transcripts]
     for conversation in parsed:
         # Saving a chat with Casey under Robin would quietly mix two people's histories,
         # which every later read would build on. An export that spells the name
@@ -310,9 +320,11 @@ def _thread_source(args: argparse.Namespace) -> tuple[Conversation, Escalation |
     someone saved, and their most recent conversation is used.
     """
     if Path(args.source).is_file():
-        return read_transcript(args.source, owner=args.owner, match=args.match), None
-    if args.owner or args.match:
-        raise StoreError("--owner and --match apply to a transcript file, not someone saved")
+        return _read(args.source, args), None
+    if args.owner or args.match or getattr(args, "dates", None):
+        raise StoreError(
+            "--owner, --match, and --dates apply to a transcript file, not someone saved"
+        )
     with Store() as store:
         person = store.find_person(args.source)
         if person is None:
@@ -547,6 +559,9 @@ transcript format:
   [2026-03-02 19:04] Robin: hey!          timestamps are optional
   Sam: hi, how was the ride?
       indented lines continue the message above
+
+  WhatsApp exports (Export chat, without media) and iMessage exports (the TXT
+  output of imessage-exporter) are read as they are; say who you are with --owner.
 """
 
 
@@ -573,12 +588,17 @@ def _build_parser() -> argparse.ArgumentParser:
             epilog=_FORMAT,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        sub.add_argument("transcript", help="Path to a plain-text transcript file.")
+        sub.add_argument("transcript", help="A transcript file, or a WhatsApp or iMessage export.")
         sub.add_argument(
             "--owner", metavar="NAME", help="Your name in the transcript. Overrides '# owner:'."
         )
         sub.add_argument(
             "--match", metavar="NAME", help="Their name in the transcript. Overrides '# match:'."
+        )
+        sub.add_argument(
+            "--dates",
+            choices=[o.value for o in DateOrder],
+            help="For a WhatsApp export whose dates could be either: day-first or month-first.",
         )
 
     for name in ("redact", "analyze", "flags"):
@@ -696,6 +716,11 @@ def _build_parser() -> argparse.ArgumentParser:
             dest="private_names",
             help="Another person's name to strip before sending. Repeat for more than one.",
         )
+        sub.add_argument(
+            "--dates",
+            choices=[o.value for o in DateOrder],
+            help="For a WhatsApp export whose dates could be either: day-first or month-first.",
+        )
         sub.add_argument("--json", action="store_true", help="Print the report as JSON.")
         sub.add_argument(
             "--no-progress",
@@ -725,6 +750,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--match",
         metavar="NAME",
         help="Their name in the transcripts, if it is not the name being added.",
+    )
+    add.add_argument(
+        "--dates",
+        choices=[o.value for o in DateOrder],
+        help="For a WhatsApp export whose dates could be either: day-first or month-first.",
     )
 
     subcommands.add_parser(
@@ -878,7 +908,7 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_chat(args)
 
     try:
-        conversation = read_transcript(args.transcript, owner=args.owner, match=args.match)
+        conversation = _read(args.transcript, args)
     except TranscriptError as exc:
         print(f"confidant: {exc}", file=sys.stderr)
         return 2

@@ -365,7 +365,7 @@ def test_owner_and_match_are_only_for_files(capsys):
     run(capsys, "add", "Robin", SAMPLE)
     code, _, err = run(capsys, "draft", "Robin", "--match", "Robyn")
     assert code == 2
-    assert "--owner and --match apply to a transcript file" in err
+    assert "--owner, --match, and --dates apply to a transcript file" in err
 
 
 def test_draft_without_credentials_exits_2(capsys):

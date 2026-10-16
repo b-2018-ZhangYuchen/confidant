@@ -23,6 +23,7 @@ Early and honest about it. Working today:
 | | |
 |---|---|
 | ✅ | Transcript parsing (plain text, timestamps optional, multi-line messages) |
+| ✅ | WhatsApp and iMessage exports read as they are, with media, deletions, and app notices left out and counted |
 | ✅ | Local conversation statistics — no API call, no data leaves your machine |
 | ✅ | Redaction of names, phone numbers, and addresses before anything is sent |
 | ✅ | Personality read backed by Claude, with quoted evidence and explicit confidence |
@@ -105,6 +106,59 @@ Sam <-> Robin
   spans            3 days
   last message     2026-03-05 21:36
 ```
+
+### Reading a chat app's export
+
+Every command that takes a transcript also takes the file a chat app exports, and works
+out which it is from the first line:
+
+- **WhatsApp**: open the chat, *Export chat*, *Without media*, and give Confidant the
+  `.txt` (unzipped, if it arrived as a zip). iOS and Android layouts both work, 12- and
+  24-hour times both work, and so do the date orders different countries use.
+- **iMessage**: Messages has no export of its own, so use the TXT output of
+  [`imessage-exporter`](https://github.com/ReagentX/imessage-exporter). Your messages
+  are the ones marked `Me`; `--owner` and `--match` give the two of you names, since
+  the export may only have a phone number for them.
+- **Hinge**: the data download's `matches.json` holds only the messages you sent, so
+  Confidant has none of theirs to read. It recognizes the file and says so instead of
+  reading half a conversation as someone who never answered; copy the chat out of the
+  app into a transcript instead.
+
+A WhatsApp export names both of you, so say which one is you:
+
+```bash
+confidant stats examples/whatsapp_chat.txt --owner Noor
+```
+
+prints, first on stderr,
+
+```
+confidant: examples/whatsapp_chat.txt: read as a WhatsApp export, 10 messages; left out 1 media message, 1 deleted message and 1 app notice.
+```
+
+and then the stats as usual:
+
+```
+Noor <-> Ari
+  messages         10 (4 you / 6 them)
+  avg words (you)  9.2
+  avg words (them) 9.8
+  effort ratio     1.06 (their words per word of yours)
+  spans            0 days
+  last message     2026-06-15 12:04
+```
+
+Photos, voice notes, stickers, deleted messages, tapbacks, and the app's own notices
+are not messages anyone wrote, so they are left out, and that line says how many of
+each, so a read that never mentions the photo does not come as a surprise. iOS files
+WhatsApp's encryption notice under the other person's name; it is recognized and left
+out too, rather than becoming the first thing they "said". WhatsApp writes dates the way
+your phone's region does, with nothing in the file to say whether `01/02` is the first
+of February or the second of January. A day above 12, or the only order that keeps the
+messages in sequence, settles it; when neither does, Confidant asks for `--dates dmy`
+or `--dates mdy` rather than guessing, because a wrong guess would put every message in
+the wrong month. Group chats are refused, as with transcripts. `add` saves an export like
+any transcript, so a newer export of the same chat adds only the new messages.
 
 While `analyze`, `flags`, `draft`, `comfort`, `ask`, or `chat` is waiting on Claude, a single line on stderr says
 what stage it has reached, and rewrites itself as it goes:
@@ -733,7 +787,8 @@ Your chat history is about as private as data gets, and this repo is built aroun
   before you can make a mistake with them. The only conversations in this repository are
   `examples/sample_chat.txt`, `examples/sample_chat_later.txt`,
   `examples/pressure_chat.txt`, `examples/details_chat.txt`,
-  `examples/faded_chat.txt`, and the eval transcripts in `examples/eval/`, all fictional.
+  `examples/faded_chat.txt`, the two example exports `examples/whatsapp_chat.txt` and
+  `examples/imessage_chat.txt`, and the eval transcripts in `examples/eval/`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
 - `confidant add`, `list`, `show`, `remove`, `profile`, `timeline`, and `nudge` never make a network call either. They
   keep people and conversations in one SQLite file at `~/.confidant/confidant.db`, or

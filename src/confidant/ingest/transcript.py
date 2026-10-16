@@ -217,19 +217,12 @@ def read_transcript(
     owner: str | None = None,
     match: str | None = None,
 ) -> Conversation:
-    """Read and parse a transcript file."""
-    path = Path(path)
-    try:
-        text = path.read_text(encoding="utf-8")
-    except FileNotFoundError as exc:
-        raise TranscriptError(f"No transcript at {path}") from exc
-    except IsADirectoryError as exc:
-        raise TranscriptError(f"{path} is a folder; give the path to one transcript file") from exc
-    except PermissionError as exc:
-        raise TranscriptError(f"Not allowed to read {path}") from exc
-    except UnicodeDecodeError as exc:
-        # Usually a chat app's export in another encoding, or not a text file at all.
-        raise TranscriptError(
-            f"{path} is not UTF-8 text. If it is a chat export, re-save it as UTF-8 plain text."
-        ) from exc
-    return parse_transcript(text, owner=owner, match=match, source=str(path))
+    """Read and parse a transcript file, or a WhatsApp or iMessage export.
+
+    See :mod:`confidant.ingest.exports` for the formats recognized, and
+    :func:`~confidant.ingest.exports.read_export` to also learn what was left out.
+    """
+    # Imported here because the export adapters build on this module's parser.
+    from confidant.ingest.exports import read_export
+
+    return read_export(path, owner=owner, match=match).conversation
