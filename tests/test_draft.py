@@ -24,7 +24,7 @@ from confidant.analysis.draft import (
     draft_reply,
     ground_drafts,
 )
-from confidant.cli import _latest, main
+from confidant.cli import main
 from confidant.config import Settings
 from confidant.ingest.transcript import read_transcript
 from confidant.models import Conversation, Message, Role
@@ -32,7 +32,7 @@ from confidant.profile import read_conversation
 from confidant.prompts.draft import TONES
 from confidant.recording import RecordingError, ReplayClient, StaleRecording, run_analysis
 from confidant.redaction import redact
-from confidant.store import ReadingKind, Store, StoredConversation
+from confidant.store import ReadingKind, Store, StoredConversation, latest_conversation
 
 README = Path(__file__).parents[1] / "README.md"
 RECORDINGS = Path(__file__).parent / "fixtures" / "recorded"
@@ -400,9 +400,9 @@ def test_the_most_recent_conversation_is_the_one_drafted_into():
         )
 
     older, newer = stored(1, datetime(2026, 3, 1)), stored(2, datetime(2026, 4, 1))
-    assert _latest([newer, older]) is newer
+    assert latest_conversation([newer, older]) is newer
     undated = [stored(3, None), stored(4, None)]
-    assert _latest(undated).id == 4
+    assert latest_conversation(undated).id == 4
 
 
 def test_help_names_draft_and_says_it_never_sends(capsys):

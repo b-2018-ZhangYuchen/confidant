@@ -81,5 +81,11 @@ no choice the model makes can send anything beyond that redacted conversation.
 the conversation's own key, the earlier answers it carries are the model's own
 placeholdered text, and the chat is held only in memory, never written to the store.
 
+`confidant serve` is the same core over HTTP, and the same rule: each route makes the
+calls its command makes and no others. It listens only on the owner's machine and has no
+sign-in, so it also refuses requests that name another host or that a browser marks as
+coming from another website. Otherwise any page open in the owner's browser could read
+their saved conversations through it.
+
 `confidant draft` writes words the owner might send, and sends none of them. There is no
 code path in Confidant that messages anyone.

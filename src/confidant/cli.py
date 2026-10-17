@@ -16,6 +16,8 @@ confidant remove   Robin
 confidant profile  Robin                           # local; --update calls Claude
 confidant timeline Robin                           # local
 confidant nudge                                    # local
+
+confidant serve                                    # the same, over HTTP on localhost
 """
 
 from __future__ import annotations
@@ -35,11 +37,16 @@ from confidant.analysis.comfort import comfort
 from confidant.analysis.draft import DEFAULT_TONE, draft_reply
 from confidant.analysis.flags import analyze_flags
 from confidant.analysis.personality import analyze_personality
-from confidant.client import IncompleteResponse, ModelRefusal, ToolLoopError
+from confidant.client import (
+    IncompleteResponse,
+    ModelRefusal,
+    ToolLoopError,
+    describe_api_error,
+)
 from confidant.config import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, ConfigError, Settings
 from confidant.ingest.exports import DateOrder, read_export
 from confidant.ingest.transcript import TranscriptError
-from confidant.models import Conversation, Role
+from confidant.models import Conversation
 from confidant.nudge import build_nudge
 from confidant.profile import build_profile, read_conversation
 from confidant.progress import StatusLine
@@ -55,6 +62,7 @@ from confidant.store import (
     StoredConversation,
     StoreError,
     UnknownPerson,
+    latest_conversation,
     name_key,
 )
 from confidant.timeline import Period, build_timeline
@@ -70,29 +78,6 @@ def _read(path: str | Path, args: argparse.Namespace) -> Conversation:
     if note is not None:
         print(f"confidant: {path}: {note}", file=sys.stderr)
     return imported.conversation
-
-
-def _describe(conversation: Conversation) -> str:
-    """Everything we can say about a conversation without calling a model."""
-    lines = [
-        f"{conversation.owner_name} <-> {conversation.match_name}",
-        f"  messages         {len(conversation)} "
-        f"({len(conversation.owner_messages)} you / {len(conversation.match_messages)} them)",
-        f"  avg words (you)  {conversation.mean_words(Role.OWNER):.1f}",
-        f"  avg words (them) {conversation.mean_words(Role.MATCH):.1f}",
-    ]
-
-    ratio = conversation.effort_ratio
-    if ratio is not None:
-        lines.append(f"  effort ratio     {ratio:.2f} (their words per word of yours)")
-
-    span = conversation.timespan
-    if span is not None:
-        lines.append(f"  spans            {span.days} days")
-    if conversation.last_activity is not None:
-        lines.append(f"  last message     {conversation.last_activity:%Y-%m-%d %H:%M}")
-
-    return "\n".join(lines)
 
 
 def _preview(conversation: Conversation) -> str:
@@ -149,7 +134,7 @@ def _show_person(store: Store, name: str) -> str:
     if not conversations:
         lines += ["", f"Nothing saved yet. Add a transcript with: confidant add {person.name} FILE"]
     for stored in conversations:
-        lines += ["", _conversation_heading(stored), _describe(store.load_conversation(stored.id))]
+        lines += ["", _conversation_heading(stored), store.load_conversation(stored.id).describe()]
     return "\n".join(lines)
 
 
@@ -230,7 +215,7 @@ def _model_failure(exc: BaseException, settings: Settings | None) -> tuple[int, 
     if isinstance(exc, IncompleteResponse | ToolLoopError):
         return 4, str(exc)
     if isinstance(exc, anthropic.APIError):
-        return 4, _api_error(exc, settings or Settings())
+        return 4, describe_api_error(exc, settings or Settings())
     if isinstance(exc, KeyboardInterrupt):
         return 130, "cancelled."
     return 2, str(exc)
@@ -304,15 +289,6 @@ def _run_profile(args: argparse.Namespace) -> int:
     return 0
 
 
-def _latest(conversations: list[StoredConversation]) -> StoredConversation:
-    # The thread with the most recent message is the one a reply would go to. Undated
-    # conversations fall back to the order they were saved in.
-    return max(
-        enumerate(conversations),
-        key=lambda pair: (pair[1].last_message or datetime.min, pair[0]),
-    )[1]
-
-
 def _thread_source(args: argparse.Namespace) -> tuple[Conversation, Escalation | None]:
     """The conversation to work on, and any safety notice saved for that person.
 
@@ -337,7 +313,7 @@ def _thread_source(args: argparse.Namespace) -> tuple[Conversation, Escalation |
                 f"Nothing is saved for {person.name} yet. Add a transcript with: "
                 f"confidant add {person.name} FILE"
             )
-        conversation = store.load_conversation(_latest(conversations).id)
+        conversation = store.load_conversation(latest_conversation(conversations).id)
         # From every saved check, not only this conversation's: a threat made in an
         # older chat is still the most important thing to know before writing back, or
         # before being told how to feel about it ending.
@@ -510,6 +486,39 @@ def _run_store_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_serve(args: argparse.Namespace) -> int:
+    """``serve``: the HTTP API, on this machine only."""
+    try:
+        import uvicorn
+
+        from confidant.api import create_app, is_local_host
+    except ImportError:
+        print(
+            "confidant: serve needs the API extra. Install it with: pip install 'confidant[api]'",
+            file=sys.stderr,
+        )
+        return 2
+    if not is_local_host(args.host):
+        # The API has no sign-in because it has no one else to serve. On any other
+        # address, anyone who can reach the machine could read every saved chat.
+        print(
+            f"confidant: {args.host!r} is not this machine. The API only listens on "
+            "localhost, 127.0.0.1, or ::1, because it has no sign-in.",
+            file=sys.stderr,
+        )
+        return 2
+    host = f"[{args.host}]" if ":" in args.host else args.host
+    print(
+        f"confidant: serving on http://{host}:{args.port}/api (schema at /openapi.json). Only this "
+        "machine can reach it. Ctrl-C to stop.",
+        file=sys.stderr,
+    )
+    # No access log: request paths carry the names of the people saved, and a log is
+    # one more place for them to end up.
+    uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning", access_log=False)
+    return 0
+
+
 _EPILOG = f"""\
 examples:
   confidant stats examples/sample_chat.txt
@@ -526,6 +535,7 @@ examples:
   confidant timeline Robin
   confidant nudge
   confidant comfort examples/faded_chat.txt --region GB
+  confidant serve
 
 stats and redact never touch the network, and neither do add, list, show,
 remove, profile, timeline, and nudge, which keep people and their conversations
@@ -534,6 +544,7 @@ analyze, flags, draft, comfort, ask, chat, and profile --update send the redacte
 transcript to the Anthropic API and nowhere else, and end with a line on stderr saying how
 many tokens they used and roughly what that cost.
 draft never sends a message: it prints suggestions and you do the rest.
+serve offers all of this over HTTP, to this machine only.
 
 environment (or put these in .env):
   ANTHROPIC_API_KEY     needed for analyze, flags, draft, comfort, ask, chat,
@@ -843,6 +854,19 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    serve = subcommands.add_parser(
+        "serve",
+        help="Run the HTTP API on this machine, for a browser or another program.",
+        description=(
+            "Run the HTTP API: Confidant's commands as JSON over HTTP, on the same store "
+            "and the same checks. It listens on this machine only and has no sign-in, so "
+            "a host other than localhost, 127.0.0.1, or ::1 is refused. Needs the API "
+            "extra: pip install 'confidant[api]'."
+        ),
+    )
+    serve.add_argument("--host", default="127.0.0.1", help="Default: 127.0.0.1.")
+    serve.add_argument("--port", type=int, default=8000, help="Default: 8000.")
+
     # Every command that can open with a safety notice. An unknown region is not an
     # error: someone at a bad moment who mistypes their country still gets the notice,
     # with a line saying there are no numbers on file for it.
@@ -868,29 +892,6 @@ def _moment(text: str) -> datetime:
         ) from None
 
 
-def _api_error(exc: anthropic.APIError, settings: Settings) -> str:
-    """Say what went wrong in terms of what the owner can do about it."""
-    if isinstance(exc, anthropic.APIConnectionError):
-        # Includes timeouts, which subclass it.
-        return "Could not reach the Anthropic API. Check your connection and try again."
-    if isinstance(exc, anthropic.AuthenticationError):
-        return (
-            "The Anthropic API did not accept these credentials. Check ANTHROPIC_API_KEY "
-            "in .env or your shell."
-        )
-    if isinstance(exc, anthropic.NotFoundError):
-        return (
-            f"The Anthropic API does not know the model {settings.model!r}. Check "
-            "CONFIDANT_MODEL, or unset it to use the default."
-        )
-    if isinstance(exc, anthropic.RateLimitError):
-        return "The Anthropic API is rate-limiting this key. Wait a minute and try again."
-    status = getattr(exc, "status_code", None)
-    if isinstance(status, int) and status >= 500:
-        return f"The Anthropic API is having trouble (HTTP {status}). Try again shortly."
-    return f"The Anthropic API call failed: {exc}"
-
-
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     with using_region(getattr(args, "region", None)):
@@ -906,6 +907,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_on_thread(args)
     if args.command == "chat":
         return _run_chat(args)
+    if args.command == "serve":
+        return _run_serve(args)
 
     try:
         conversation = _read(args.transcript, args)
@@ -914,7 +917,7 @@ def _dispatch(args: argparse.Namespace) -> int:
         return 2
 
     if args.command == "stats":
-        print(_describe(conversation))
+        print(conversation.describe())
         return 0
 
     conversation.private_names.extend(args.private_names)

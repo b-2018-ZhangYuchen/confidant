@@ -54,6 +54,7 @@ __all__ = [
     "block_param",
     "build_client",
     "cached_system",
+    "describe_api_error",
     "structured_call",
 ]
 
@@ -339,3 +340,26 @@ def _respond(
             explanation=getattr(details, "explanation", None),
         )
     return response
+
+
+def describe_api_error(exc: anthropic.APIError, settings: Settings) -> str:
+    """Say what went wrong in terms of what the owner can do about it."""
+    if isinstance(exc, anthropic.APIConnectionError):
+        # Includes timeouts, which subclass it.
+        return "Could not reach the Anthropic API. Check your connection and try again."
+    if isinstance(exc, anthropic.AuthenticationError):
+        return (
+            "The Anthropic API did not accept these credentials. Check ANTHROPIC_API_KEY "
+            "in .env or your shell."
+        )
+    if isinstance(exc, anthropic.NotFoundError):
+        return (
+            f"The Anthropic API does not know the model {settings.model!r}. Check "
+            "CONFIDANT_MODEL, or unset it to use the default."
+        )
+    if isinstance(exc, anthropic.RateLimitError):
+        return "The Anthropic API is rate-limiting this key. Wait a minute and try again."
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and status >= 500:
+        return f"The Anthropic API is having trouble (HTTP {status}). Try again shortly."
+    return f"The Anthropic API call failed: {exc}"

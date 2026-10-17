@@ -28,7 +28,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# `confidant serve`. Optional, so the CLI alone stays four dependencies.
+api = [
+  "fastapi>=0.110",
+  "uvicorn>=0.30",
+]
 dev = [
+  "confidant[api]",
+  # FastAPI's TestClient runs on it; the suite never opens a socket with it.
+  "httpx>=0.27",
   "pytest>=8.0",
   "ruff>=0.6",
 ]

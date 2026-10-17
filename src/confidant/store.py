@@ -53,6 +53,7 @@ __all__ = [
     "StoredConversation",
     "UnknownPerson",
     "default_db_path",
+    "latest_conversation",
     "name_key",
 ]
 
@@ -219,6 +220,15 @@ _MIGRATIONS: tuple[str, ...] = (
 )
 
 SCHEMA_VERSION = len(_MIGRATIONS)
+
+
+def latest_conversation(conversations: list[StoredConversation]) -> StoredConversation:
+    """The conversation a reply would go to: the one with the most recent message."""
+    # Undated conversations fall back to the order they were saved in.
+    return max(
+        enumerate(conversations),
+        key=lambda pair: (pair[1].last_message or datetime.min, pair[0]),
+    )[1]
 
 
 def name_key(name: str) -> str:

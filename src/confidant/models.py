@@ -110,6 +110,28 @@ class Conversation:
             return None
         return self.mean_words(Role.MATCH) / owner
 
+    def describe(self) -> str:
+        """Everything we can say about the conversation without calling a model."""
+        lines = [
+            f"{self.owner_name} <-> {self.match_name}",
+            f"  messages         {len(self)} "
+            f"({len(self.owner_messages)} you / {len(self.match_messages)} them)",
+            f"  avg words (you)  {self.mean_words(Role.OWNER):.1f}",
+            f"  avg words (them) {self.mean_words(Role.MATCH):.1f}",
+        ]
+
+        ratio = self.effort_ratio
+        if ratio is not None:
+            lines.append(f"  effort ratio     {ratio:.2f} (their words per word of yours)")
+
+        span = self.timespan
+        if span is not None:
+            lines.append(f"  spans            {span.days} days")
+        if self.last_activity is not None:
+            lines.append(f"  last message     {self.last_activity:%Y-%m-%d %H:%M}")
+
+        return "\n".join(lines)
+
     def transcript(self, *, include_timestamps: bool = True) -> str:
         """Render back to the canonical ``[timestamp] Name: text`` text format."""
         lines = []

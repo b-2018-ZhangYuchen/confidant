@@ -44,6 +44,7 @@ Early and honest about it. Working today:
 | ✅ | `evals compare` — which checks a prompt change won and lost, with guard checks that fail the comparison whatever the score |
 | ✅ | `confidant ask` — one question, and Claude decides what to look at: it searches and reads the transcript and runs the personality read or red-flag check as tools, with every quote checked and the red-flag check run whatever was asked |
 | ✅ | `confidant chat` — follow-up questions: each answer is in the next question's context, the checks run once for the whole chat, and nothing from it is saved |
+| ✅ | `confidant serve` — the same commands as a JSON API over HTTP, on this machine only, for the web UI to come |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -54,6 +55,12 @@ git clone git@github.com:b-2018-ZhangYuchen/confidant.git
 cd confidant
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+```
+
+For `confidant serve`, add the API extra (the dev install already has it):
+
+```bash
+pip install -e ".[api]"
 ```
 
 Then set your API key:
@@ -727,6 +734,59 @@ printing one answer per line. A question Claude declines or cannot finish is rep
 and skipped; the chat goes on, and the failed question is not part of what later ones
 are told.
 
+### Over HTTP
+
+`confidant serve` puts the same commands behind a JSON API, for a browser or another
+program. It is the same core: the same parser, redaction, grounding, safety notices, and
+store, so nothing read over HTTP is read any differently.
+
+```bash
+confidant serve                 # http://127.0.0.1:8000/api; --port to change it
+```
+
+```bash
+curl -s localhost:8000/api/stats -H 'content-type: application/json' \
+    -d '{"text": "...the transcript...", "filename": "examples/sample_chat.txt"}'
+```
+
+prints, for `examples/sample_chat.txt`,
+
+```
+{"owner":"Sam","match":"Robin","messages":17,"owner_messages":8,"match_messages":9,"owner_mean_words":8.88,"match_mean_words":14.33,"effort_ratio":1.6150234741784038,"span_days":3,"last_message":"2026-03-05T21:36:00","text":"Sam <-> Robin\n  messages         17 (8 you / 9 them)\n  avg words (you)  8.9\n  avg words (them) 14.3\n  effort ratio     1.62 (their words per word of yours)\n  spans            3 days\n  last message     2026-03-05 21:36","note":null}
+```
+
+| Route | Does | |
+|---|---|---|
+| `GET /api/health` | version check | local |
+| `POST /api/stats`, `/api/redact` | as `stats` and `redact`, on a transcript sent as `{"text": ...}` | local |
+| `GET /api/people`, `POST /api/people` | `list`, and `add NAME` | local |
+| `GET`, `DELETE /api/people/{name}` | `show` and `remove` | local |
+| `POST /api/people/{name}/conversations` | `add NAME FILE`, incremental as ever | local |
+| `GET /api/people/{name}/profile`, `/timeline` | `profile` and `timeline` (`?by=day`) | local |
+| `GET /api/nudge`, `/api/people/{name}/nudge` | `nudge` (`?at=2026-04-14T09:00`) | local |
+| `POST /api/analyze`, `/api/flags` | the personality read and the red-flag check | Claude |
+| `POST /api/draft`, `/api/comfort`, `/api/ask` | on `{"transcript": {...}}` or `{"person": "Casey"}` | Claude |
+| `POST /api/people/{name}/profile/update` | `profile --update` | Claude |
+
+A transcript takes the options the CLI does, as fields: `owner`, `match`, `dates`, and
+`redact`. Any route that can carry a safety notice takes `?region=GB`. Every report comes
+back as data and again as `text`, the exact words the CLI prints, notice first, so a
+client never has to re-create the reviewed wording. Routes that call Claude add `usage`,
+error responses included, since a refused answer is still billed. Exit codes become
+statuses: 404 for someone not saved, 409 for someone saved twice, 422 for a transcript
+or request that needs fixing or an answer Claude declined, 502 for a failed or cut-off
+call, and 503 when there is no API key. Every error has the same shape,
+`{"error": {"kind": ..., "message": ...}}`. The schema is at `/openapi.json`. FastAPI's
+`/docs` page is turned off because it loads its scripts from a CDN.
+
+There is no sign-in, because there is no one else for it to serve. `serve` refuses any
+host but `localhost`, `127.0.0.1`, or `::1`. Listening locally is not enough on its own,
+since any web page open in your browser can send requests to localhost, so the API also
+refuses a request whose `Host` is not local (which stops DNS rebinding) and any request
+a browser marks as coming from another website. There is no access log either, since
+request paths carry the names of the people you have saved. `chat` has no route yet:
+holding a chat open between requests is the web UI's job.
+
 ### What gets sent
 
 Before `analyze`, `flags`, `draft`, `comfort`, `ask`, or `chat` builds a request, the transcript is redacted on your machine.
@@ -790,6 +850,8 @@ Your chat history is about as private as data gets, and this repo is built aroun
   `examples/faded_chat.txt`, the two example exports `examples/whatsapp_chat.txt` and
   `examples/imessage_chat.txt`, and the eval transcripts in `examples/eval/`, all fictional.
 - `confidant stats` and `confidant redact` never make a network call.
+- `confidant serve` listens on this machine only and refuses requests from other
+  websites. Its routes make exactly the calls the matching commands make, and no others.
 - `confidant add`, `list`, `show`, `remove`, `profile`, `timeline`, and `nudge` never make a network call either. They
   keep people and conversations in one SQLite file at `~/.confidant/confidant.db`, or
   wherever `CONFIDANT_DB` points. It is in your home directory rather than wherever you
