@@ -175,6 +175,14 @@ def test_discarded_flags_are_reported():
     assert "2 flags left out" in text
 
 
+def test_footnotes_are_the_lines_the_text_ends_with():
+    report = FlagReport(flags=[], summary="s", confidence="low", discarded=1, discarded_danger=1)
+    notes = report.footnotes()
+    assert len(notes) == 2 and "filed as serious" in notes[1]
+    assert report.to_text().endswith("\n".join(notes))
+    assert FlagReport(flags=[], summary="s", confidence="low").footnotes() == []
+
+
 # -- the prompt -----------------------------------------------------------
 
 

@@ -509,8 +509,8 @@ def _run_serve(args: argparse.Namespace) -> int:
         return 2
     host = f"[{args.host}]" if ":" in args.host else args.host
     print(
-        f"confidant: serving on http://{host}:{args.port}/api (schema at /openapi.json). Only this "
-        "machine can reach it. Ctrl-C to stop.",
+        f"confidant: open http://{host}:{args.port}/ for the web UI; the JSON API is under "
+        "/api (schema at /openapi.json). Only this machine can reach it. Ctrl-C to stop.",
         file=sys.stderr,
     )
     # No access log: request paths carry the names of the people saved, and a log is
@@ -856,9 +856,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     serve = subcommands.add_parser(
         "serve",
-        help="Run the HTTP API on this machine, for a browser or another program.",
+        help="Run the web UI and the HTTP API on this machine.",
         description=(
-            "Run the HTTP API: Confidant's commands as JSON over HTTP, on the same store "
+            "Run the web UI, and the HTTP API it uses: Confidant's commands as JSON over "
+            "HTTP, on the same store "
             "and the same checks. It listens on this machine only and has no sign-in, so "
             "a host other than localhost, 127.0.0.1, or ::1 is refused. Needs the API "
             "extra: pip install 'confidant[api]'."

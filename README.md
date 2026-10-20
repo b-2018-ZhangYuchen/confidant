@@ -44,7 +44,8 @@ Early and honest about it. Working today:
 | ✅ | `evals compare` — which checks a prompt change won and lost, with guard checks that fail the comparison whatever the score |
 | ✅ | `confidant ask` — one question, and Claude decides what to look at: it searches and reads the transcript and runs the personality read or red-flag check as tools, with every quote checked and the red-flag check run whatever was asked |
 | ✅ | `confidant chat` — follow-up questions: each answer is in the next question's context, the checks run once for the whole chat, and nothing from it is saved |
-| ✅ | `confidant serve` — the same commands as a JSON API over HTTP, on this machine only, for the web UI to come |
+| ✅ | `confidant serve` — the same commands as a JSON API over HTTP, on this machine only |
+| ✅ | A web UI at `confidant serve`'s address — upload a transcript or an export, read it locally, see what would be sent, and get the personality read or red-flag check as a report, safety notice first |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -734,14 +735,35 @@ printing one answer per line. A question Claude declines or cannot finish is rep
 and skipped; the chat goes on, and the failed question is not part of what later ones
 are told.
 
+### In a browser
+
+```bash
+confidant serve                 # then open http://127.0.0.1:8000/
+```
+
+The page takes a transcript or a WhatsApp, iMessage, or Hinge export, chosen, dropped on
+it, or pasted, with the same options as the command line: your name and theirs, the date
+order, other names to redact, and where you are for support numbers. *Read it locally*
+and *Show what would be sent* are `stats` and `redact`, and never leave your machine. The
+personality read and the red-flag check send the redacted transcript to Claude, as
+`analyze` and `flags` do, and show the report with its quotes, confidence, and what the
+call used. A safety notice comes first, in the reviewed wording, before anything the model
+wrote. *Show as plain text* gives the exact words the terminal prints.
+
+The page loads only its own three files. It sends its server a Content-Security-Policy
+that tells the browser to refuse any script, style, or request to another site, and it
+puts every piece of a transcript and a report on the page as text, never as markup, so
+a message containing HTML is shown, not run. The people list and the nudge digest come
+next.
+
 ### Over HTTP
 
-`confidant serve` puts the same commands behind a JSON API, for a browser or another
+`confidant serve` also puts the same commands behind a JSON API, for the page or another
 program. It is the same core: the same parser, redaction, grounding, safety notices, and
 store, so nothing read over HTTP is read any differently.
 
 ```bash
-confidant serve                 # http://127.0.0.1:8000/api; --port to change it
+confidant serve                 # the API is under http://127.0.0.1:8000/api; --port to change it
 ```
 
 ```bash
@@ -771,7 +793,9 @@ prints, for `examples/sample_chat.txt`,
 A transcript takes the options the CLI does, as fields: `owner`, `match`, `dates`, and
 `redact`. Any route that can carry a safety notice takes `?region=GB`. Every report comes
 back as data and again as `text`, the exact words the CLI prints, notice first, so a
-client never has to re-create the reviewed wording. Routes that call Claude add `usage`,
+client never has to re-create the reviewed wording. A report with a safety notice also
+carries it on its own as `escalation`, with its `text` and its support numbers as
+unwrapped `routing_lines`, and the red-flag check adds `footnotes` for any flag left out. Routes that call Claude add `usage`,
 error responses included, since a refused answer is still billed. Exit codes become
 statuses: 404 for someone not saved, 409 for someone saved twice, 422 for a transcript
 or request that needs fixing or an answer Claude declined, 502 for a failed or cut-off

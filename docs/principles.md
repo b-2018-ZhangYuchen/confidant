@@ -85,7 +85,9 @@ placeholdered text, and the chat is held only in memory, never written to the st
 calls its command makes and no others. It listens only on the owner's machine and has no
 sign-in, so it also refuses requests that name another host or that a browser marks as
 coming from another website. Otherwise any page open in the owner's browser could read
-their saved conversations through it.
+their saved conversations through it. The web UI it serves loads only its own files, and
+tells the browser to refuse any script or request to anywhere else, so nothing added to
+the page later could send a transcript off the machine without that policy changing too.
 
 `confidant draft` writes words the owner might send, and sends none of them. There is no
 code path in Confidant that messages anyone.

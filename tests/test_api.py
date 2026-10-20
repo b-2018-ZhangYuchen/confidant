@@ -381,7 +381,7 @@ def test_serve_runs_on_localhost_without_an_access_log(capsys, monkeypatch):
     assert main(["serve", "--port", "8123"]) == 0
     [options] = started
     assert (options["host"], options["port"], options["access_log"]) == ("127.0.0.1", 8123, False)
-    assert "http://127.0.0.1:8123/api" in capsys.readouterr().err
+    assert "http://127.0.0.1:8123/ for the web UI" in capsys.readouterr().err
 
 
 def test_serve_without_the_api_extra_says_how_to_get_it(capsys, monkeypatch):

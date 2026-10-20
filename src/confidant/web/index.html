@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Confidant</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <h1>Confidant</h1>
+    <p class="tagline">A second opinion on the people you are dating.</p>
+    <p class="local">Running on this machine. Nothing here is sent anywhere until you ask
+      for a read, and then only the redacted transcript goes to Claude.</p>
+  </header>
+
+  <main>
+    <section id="upload" aria-labelledby="upload-title">
+      <h2 id="upload-title">A conversation</h2>
+      <div id="drop" class="drop">
+        <label for="file">Choose a transcript or a WhatsApp, iMessage, or Hinge export</label>
+        <input id="file" type="file" accept=".txt,.csv,.json,text/plain,text/csv,application/json">
+        <p class="hint">or drop it here, or paste it below.</p>
+      </div>
+      <label for="text" class="block">Transcript</label>
+      <textarea id="text" rows="8" spellcheck="false"
+        placeholder="[2026-03-02 19:04] Robin: hey! your profile said you bike to work — which route?"></textarea>
+
+      <details class="options">
+        <summary>Options</summary>
+        <div class="grid">
+          <label>Your name in it <input id="owner" autocomplete="off"></label>
+          <label>Their name in it <input id="match" autocomplete="off"></label>
+          <label>Dates
+            <select id="dates">
+              <option value="">Work it out</option>
+              <option value="dmy">Day first (31/12)</option>
+              <option value="mdy">Month first (12/31)</option>
+            </select>
+          </label>
+          <label>Where you are, for support numbers
+            <input id="region" placeholder="e.g. US, GB" autocomplete="off">
+          </label>
+          <label class="wide">Anyone else named, to redact (comma-separated)
+            <input id="redact" placeholder="e.g. Jordan, Aunt Pat" autocomplete="off">
+          </label>
+        </div>
+      </details>
+
+      <p id="summary" class="summary" hidden></p>
+
+      <div class="actions">
+        <button id="stats" type="button">Read it locally</button>
+        <button id="preview" type="button">Show what would be sent</button>
+        <button id="analyze" type="button" class="primary">Personality read</button>
+        <button id="flags" type="button" class="primary">Red-flag check</button>
+      </div>
+      <p class="hint">The first two never leave this machine. The reads send the redacted
+        transcript to Claude, and say what they used.</p>
+    </section>
+
+    <section id="result" aria-live="polite" hidden>
+      <div class="result-head">
+        <h2 id="result-title"></h2>
+        <button id="as-text" type="button" class="quiet" aria-pressed="false" hidden>
+          Show as plain text</button>
+      </div>
+      <div id="escalation" class="escalation" role="alert" hidden></div>
+      <div id="report"></div>
+      <pre id="plain" class="plain" hidden></pre>
+      <p id="usage" class="usage" hidden></p>
+    </section>
+  </main>
+
+  <footer>
+    <p>A thinking aid, not a verdict. It does not diagnose anyone, and it says when a
+      transcript is too short to support a conclusion.</p>
+  </footer>
+</body>
+</html>

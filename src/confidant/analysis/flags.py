@@ -170,9 +170,15 @@ class FlagReport(BaseModel):
             out.append("")
 
         out.append(f"Confidence: {self.confidence}")
+        out.extend(self.footnotes())
+        return "\n".join(out)
+
+    def footnotes(self) -> list[str]:
+        """What grounding left out, in words. Shared with the web UI, which shows it too."""
+        notes: list[str] = []
         if self.discarded:
             noun = "flag" if self.discarded == 1 else "flags"
-            out.append(
+            notes.append(
                 f"({self.discarded} {noun} left out: the quotes behind them could not be "
                 "found in the transcript.)"
             )
@@ -185,11 +191,11 @@ class FlagReport(BaseModel):
                 if self.discarded_danger == 1
                 else f"{self.discarded_danger} of them were"
             )
-            out.append(
+            notes.append(
                 f"({which} filed as serious. If something in this conversation felt unsafe "
                 "to you, that counts for more than this check does.)"
             )
-        return "\n".join(out)
+        return notes
 
 
 # -- grounding --------------------------------------------------------------

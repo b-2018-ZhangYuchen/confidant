@@ -20,6 +20,12 @@ Three decisions follow from the API holding the same private data the CLI does:
 
 Every report comes back twice: as data, and as the ``text`` the CLI prints, so a client
 that wants the reviewed wording — safety notice first — does not have to re-implement it.
+A report that carries a safety notice also gets it at the top level as ``escalation``,
+with its own ``text``, so a page can put that block first without assembling it.
+
+``/`` is the web UI, a page in ``confidant/web`` that only talks to the routes here. It
+loads nothing from anywhere else, and says so to the browser in a Content-Security-Policy
+that would refuse a script, style, or request to another site even if one were added.
 """
 
 from __future__ import annotations
@@ -27,6 +33,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
+from importlib.resources import files
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -34,7 +41,7 @@ import anthropic
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, model_validator
 
 from confidant import __version__
@@ -72,13 +79,47 @@ from confidant.store import (
 from confidant.timeline import Period, build_timeline
 from confidant.usage import UsageMeter
 
-__all__ = ["LOCAL_HOSTS", "MAX_TRANSCRIPT_CHARS", "create_app", "is_local_host"]
+__all__ = [
+    "LOCAL_HOSTS",
+    "MAX_TRANSCRIPT_CHARS",
+    "UI_ASSETS",
+    "UI_HEADERS",
+    "create_app",
+    "is_local_host",
+]
 
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 # Several years of daily texting is a few megabytes. Anything far past that is a wrong
 # file, and reading it would hold the server up for nothing.
 MAX_TRANSCRIPT_CHARS = 20_000_000
+
+
+# The web UI's files, and the only paths under /static. A fixed list rather than a
+# directory listing, so nothing else that ends up in the package is served by accident.
+UI_ASSETS = {
+    "app.js": "text/javascript; charset=utf-8",
+    "style.css": "text/css; charset=utf-8",
+}
+
+# Same-origin only, for everything. connect-src 'self' is the line that matters most: the
+# page holds a transcript, and this stops any script on it sending one anywhere but here.
+# frame-ancestors stops another site framing the page to click its buttons for the owner.
+UI_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
+        "img-src 'self'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    # A newer install should not run against an older cached script.
+    "Cache-Control": "no-cache",
+}
+
+
+def _ui_file(name: str, media_type: str) -> Response:
+    content = files("confidant.web").joinpath(name).read_bytes()
+    return Response(content, media_type=media_type, headers=UI_HEADERS)
 
 
 def is_local_host(host: str | None) -> bool:
@@ -209,7 +250,17 @@ def _usage(meter: UsageMeter) -> dict[str, Any]:
 def _escalation(escalation: Escalation | None) -> dict[str, Any] | None:
     if escalation is None:
         return None
-    return {**escalation.model_dump(mode="json"), "text": escalation.to_text()}
+    routing = escalation.routing
+    lines = routing.heading_and_numbers() if routing is not None else []
+    if routing is not None and routing.note:
+        lines.append(routing.note)
+    return {
+        **escalation.model_dump(mode="json"),
+        "text": escalation.to_text(),
+        # The routing as the notice words it, one line each and unwrapped: ``text`` is
+        # wrapped for a terminal, and a page re-wrapping it would break it mid-sentence.
+        "routing_lines": [line.strip() for line in lines],
+    }
 
 
 def _stats(conversation: Conversation) -> dict[str, Any]:
@@ -406,11 +457,27 @@ def create_app(
             report = run(loaded, meter)
         except _MODEL_ERRORS as exc:
             raise _model_failure(exc, loaded, meter) from exc
-        return {
+        body: dict[str, Any] = {
             "report": report.model_dump(mode="json"),
             "text": report.to_text(),
+            "escalation": _escalation(getattr(report, "escalation", None)),
             "usage": _usage(meter),
         }
+        if hasattr(report, "footnotes"):
+            body["footnotes"] = report.footnotes()
+        return body
+
+    # -- the web UI -------------------------------------------------------------------
+
+    @app.get("/", include_in_schema=False)
+    def index() -> Response:
+        return _ui_file("index.html", "text/html; charset=utf-8")
+
+    @app.get("/static/{name}", include_in_schema=False)
+    def static(name: str) -> Response:
+        if name not in UI_ASSETS:
+            raise ApiFailure(404, "not-found", f"No file called {name!r} here.")
+        return _ui_file(name, UI_ASSETS[name])
 
     # -- local: nothing here touches the network --------------------------------------
 
