@@ -221,6 +221,69 @@ def test_saving_someone_elses_chat_under_a_name_is_refused(api):
     assert api.get("/api/people/Robin").json()["conversations"] == []
 
 
+def test_saving_with_create_adds_someone_new_in_one_step(api):
+    url = "/api/people/Robin/conversations"
+    # Without create, an unknown name is still a 404, as before.
+    assert api.post(url, json=_transcript("sample_chat.txt")).status_code == 404
+
+    first = api.post(url, json=_transcript("sample_chat.txt"), params={"create": "true"})
+    assert first.status_code == 201
+    assert first.json()["person"] == "Robin"
+    assert first.json()["created"] is True
+    assert first.json()["outcome"] == "new"
+
+    # Saved already, so create changes nothing: same person, no second copy.
+    again = api.post(
+        "/api/people/robin/conversations",
+        json=_transcript("sample_chat.txt"),
+        params={"create": "true"},
+    )
+    assert again.status_code == 200
+    assert again.json()["person"] == "Robin"
+    assert again.json()["created"] is False
+    assert again.json()["outcome"] == "unchanged"
+    assert len(api.get("/api/people").json()) == 1
+
+
+def test_a_wrong_chat_with_create_leaves_no_one_behind(api):
+    response = api.post(
+        "/api/people/Robin/conversations",
+        json=_transcript("pressure_chat.txt"),
+        params={"create": "true"},
+    )
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["kind"] == "wrong-person"
+    # The name the parser found, so a page can say what to put in the match field.
+    assert error["match"] == "Casey"
+    assert api.get("/api/people").json() == []
+
+
+def test_the_nudge_caveat_comes_unwrapped_and_only_with_timing(api):
+    assert api.get("/api/nudge").json()["caveat"] is None
+    api.post("/api/people", json={"name": "Robin"})
+    # Saved but empty: still nothing to time, so nothing to caveat.
+    assert api.get("/api/nudge").json()["caveat"] is None
+
+    _save(api, "Robin", "sample_chat.txt")
+    data = api.get("/api/nudge", params={"at": "2026-03-10T09:00"}).json()
+    assert data["caveat"].startswith("This goes by the timing of saved messages alone.")
+    assert "\n" not in data["caveat"]
+    assert " ".join(data["text"].split()).endswith(data["caveat"])
+
+
+def test_profile_footnotes_are_the_lines_its_text_ends_its_red_flags_with(api, db):
+    _save(api, "Casey", "pressure_chat.txt")
+    _check_casey_for_flags(db)
+    data = api.get("/api/people/Casey/profile").json()
+    [entry] = data["conversations"]
+    assert entry["match_messages"] > 0
+    # flags_pressure has a flag whose quote is not in the transcript.
+    assert data["footnotes"]
+    lines = [line.strip() for line in data["text"].splitlines()]
+    assert all(note in lines for note in data["footnotes"])
+
+
 def test_an_unknown_person_is_a_404(api):
     for path in ("/api/people/Nobody", "/api/people/Nobody/profile", "/api/people/Nobody/nudge"):
         response = api.get(path)

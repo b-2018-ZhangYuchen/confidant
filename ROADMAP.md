@@ -43,7 +43,7 @@ need something else first, and that reordering is part of the record.
 - [x] **Thu Oct 15** — Import adapters — WhatsApp, iMessage, and Hinge exports
 - [x] **Fri Oct 16** — FastAPI backend over the same core
 - [x] **Sat Oct 17** — Web UI: transcript upload and report view
-- [ ] **Sun Oct 18** — Web UI: the people list and the nudge digest
+- [x] **Sun Oct 18** — Web UI: the people list and the nudge digest
 - [ ] **Mon Oct 19** — Packaging, `pipx install confidant`, and a v0.2 release
 
 ## Needs a live run

@@ -193,13 +193,22 @@ class ApiFailure(Exception):
     """Anything a route gives up on, with the status and body to answer with."""
 
     def __init__(
-        self, status: int, kind: str, message: str, usage: UsageMeter | None = None
+        self,
+        status: int,
+        kind: str,
+        message: str,
+        usage: UsageMeter | None = None,
+        **details: Any,
     ) -> None:
         super().__init__(message)
         self.status, self.kind, self.message, self.usage = status, kind, message, usage
+        # Anything a client needs to fix the request without parsing the message.
+        self.details = details
 
     def body(self) -> dict[str, Any]:
-        body: dict[str, Any] = {"error": {"kind": self.kind, "message": self.message}}
+        body: dict[str, Any] = {
+            "error": {"kind": self.kind, "message": self.message, **self.details}
+        }
         if self.usage:
             body["usage"] = _usage(self.usage)
         return body
@@ -308,6 +317,7 @@ def _profile(profile: Profile) -> dict[str, Any]:
         "conversations": [
             {
                 **_stored(entry.stored),
+                "match_messages": entry.match_messages,
                 "personality": current(entry.personality),
                 "flags": current(entry.flags),
             }
@@ -317,6 +327,7 @@ def _profile(profile: Profile) -> dict[str, Any]:
             {"conversation": t.conversation_id, **t.flag.model_dump(mode="json")}
             for t in profile.flags
         ],
+        "footnotes": profile.footnotes(),
         "pending": len(profile.pending),
         "escalation": _escalation(profile.escalation),
         "text": profile.to_text(),
@@ -339,6 +350,7 @@ def _nudge(nudge: Nudge) -> dict[str, Any]:
             # list and is not a score of anyone. The order is kept.
             for c in nudge.contacts
         ],
+        "caveat": nudge.caveat,
         "text": nudge.to_text(),
     }
 
@@ -543,7 +555,10 @@ def create_app(
             return {"removed": person.name, "conversations": count}
 
     @app.post("/api/people/{name}/conversations")
-    def save_conversation(name: str, body: TranscriptIn) -> JSONResponse:
+    def save_conversation(name: str, body: TranscriptIn, create: bool = False) -> JSONResponse:
+        # `create` is `confidant add NAME FILE` for someone not saved yet. The person is
+        # added only once the transcript has parsed and passed the check below, so a
+        # wrong file does not leave an empty person behind.
         conversation, note = read(body)
         # The same guard as `confidant add`: a chat with Casey filed under Robin would
         # quietly mix two histories, so a different name has to be said out loud.
@@ -554,12 +569,19 @@ def create_app(
                 f"This is a conversation with {conversation.match_name!r}, not {name!r}. If "
                 f"that is how {name} appears in it, send 'match': "
                 f"{conversation.match_name!r}.",
+                match=conversation.match_name,
             )
         with opened() as s:
-            result = s.save_conversation(s.person(name), conversation)
-        status = 201 if result.outcome is SaveOutcome.NEW else 200
+            person = s.find_person(name)
+            created = person is None and create
+            if person is None:
+                person = s.add_person(name) if create else s.person(name)
+            result = s.save_conversation(person, conversation)
+        status = 201 if created or result.outcome is SaveOutcome.NEW else 200
         return JSONResponse(
             {
+                "person": person.name,
+                "created": created,
                 "outcome": result.outcome.value,
                 "added": result.added,
                 "conversation": _plain(_stored(result.conversation)),

@@ -204,28 +204,39 @@ class Profile:
             if flag.innocent_reading and flag.severity != "danger":
                 out.append(f"    Could also be: {flag.innocent_reading}")
 
+        out += [f"  {note}" for note in self.footnotes()]
+        return out
+
+    def footnotes(self) -> list[str]:
+        """What the red-flag section says about flags left out and chats not checked.
+
+        One line each, so the web UI shows the same words without re-deriving them.
+        """
+        checked = [entry for entry in self.entries if entry.flags is not None]
+        out: list[str] = []
         discarded = sum(entry.flags.report.discarded for entry in checked)
         discarded_danger = sum(entry.flags.report.discarded_danger for entry in checked)
         if discarded:
             out.append(
-                f"  ({_plural(discarded, 'flag')} left out: the quotes behind them could not "
+                f"({_plural(discarded, 'flag')} left out: the quotes behind them could not "
                 "be found in the transcript.)"
             )
         if discarded_danger:
             # The same reasoning as in a single check: a dropped danger flag must not
             # leave the profile sounding more reassuring than it has earned.
             out.append(
-                f"  ({_plural(discarded_danger, 'of them was', 'of them were')} filed as "
+                f"({_plural(discarded_danger, 'of them was', 'of them were')} filed as "
                 "serious. If something in these conversations felt unsafe to you, that "
                 "counts for more than this check does.)"
             )
-        unchecked = [
-            f"#{entry.stored.id}"
-            for entry in self.entries
-            if entry.flags is None and entry.match_messages
-        ]
-        if unchecked:
-            out.append(f"  (Not checked yet: {', '.join(unchecked)}.)")
+        if checked:
+            unchecked = [
+                f"#{entry.stored.id}"
+                for entry in self.entries
+                if entry.flags is None and entry.match_messages
+            ]
+            if unchecked:
+                out.append(f"(Not checked yet: {', '.join(unchecked)}.)")
         return out
 
 

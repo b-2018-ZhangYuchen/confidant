@@ -50,11 +50,16 @@ class Nudge:
     def others(self) -> list[Contact]:
         return [c for c in self.contacts if not c.suggested and c.state is not ContactState.SAFETY]
 
-    def _caveat(self) -> list[str]:
-        # Said only when there was timing to go on: "nothing saved yet" needs no caveat.
+    @property
+    def caveat(self) -> str | None:
+        """:data:`CAVEAT`, unwrapped, or ``None`` when there was no timing to go on."""
+        # "Nothing saved yet" needs no caveat.
         if any(c.silence is not None for c in self.contacts):
-            return ["", CAVEAT]
-        return []
+            return " ".join(CAVEAT.split())
+        return None
+
+    def _caveat(self) -> list[str]:
+        return ["", CAVEAT] if self.caveat is not None else []
 
     def to_text(self) -> str:
         if not self.contacts:

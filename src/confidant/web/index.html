@@ -59,6 +59,13 @@
       </div>
       <p class="hint">The first two never leave this machine. The reads send the redacted
         transcript to Claude, and say what they used.</p>
+
+      <div class="save">
+        <label for="save-name">Save it under</label>
+        <input id="save-name" autocomplete="off" placeholder="their name">
+        <button id="save" type="button">Save to people</button>
+      </div>
+      <p id="save-status" class="hint" role="status" hidden></p>
     </section>
 
     <section id="result" aria-live="polite" hidden>
@@ -71,6 +78,31 @@
       <div id="report"></div>
       <pre id="plain" class="plain" hidden></pre>
       <p id="usage" class="usage" hidden></p>
+    </section>
+
+    <section id="people" aria-labelledby="people-title">
+      <div class="result-head">
+        <h2 id="people-title">People</h2>
+        <button id="people-refresh" type="button" class="quiet">Refresh</button>
+      </div>
+      <p class="hint">Who you are seeing, from the private file on this machine. A profile
+        shows the reads already saved and costs nothing.</p>
+      <div id="people-list"></div>
+    </section>
+
+    <section id="digest" aria-labelledby="digest-title">
+      <div class="result-head">
+        <h2 id="digest-title">Who to write to</h2>
+        <button id="digest-refresh" type="button" class="quiet">Refresh</button>
+      </div>
+      <p class="hint">From the timing of saved messages, on this machine. It never suggests
+        writing to someone you are waiting on.</p>
+      <details class="options">
+        <summary>As things stood at another time</summary>
+        <label class="block" for="digest-at">Leave out messages after</label>
+        <input id="digest-at" type="datetime-local">
+      </details>
+      <div id="digest-body"></div>
     </section>
   </main>
 

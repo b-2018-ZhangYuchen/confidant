@@ -46,6 +46,7 @@ Early and honest about it. Working today:
 | ✅ | `confidant chat` — follow-up questions: each answer is in the next question's context, the checks run once for the whole chat, and nothing from it is saved |
 | ✅ | `confidant serve` — the same commands as a JSON API over HTTP, on this machine only |
 | ✅ | A web UI at `confidant serve`'s address — upload a transcript or an export, read it locally, see what would be sent, and get the personality read or red-flag check as a report, safety notice first |
+| ✅ | The people you have saved and who to write to, in the same page — save a conversation, open a profile, bring its reads up to date, and read the nudge digest, safety notices first |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
@@ -753,8 +754,20 @@ wrote. *Show as plain text* gives the exact words the terminal prints.
 The page loads only its own three files. It sends its server a Content-Security-Policy
 that tells the browser to refuse any script, style, or request to another site, and it
 puts every piece of a transcript and a report on the page as text, never as markup, so
-a message containing HTML is shown, not run. The people list and the nudge digest come
-next.
+a message containing HTML is shown, not run.
+
+Under the report are the people you have saved and the nudge digest, both read from the
+same private file the command line uses. *Save to people* is `add NAME FILE`: it saves
+what is in the box under the name you give, or the name the transcript has for them,
+adds only the new messages to a chat already saved, and refuses a chat whose other
+speaker is someone else, so nobody new is added by a wrong file. *Profile* is `profile`,
+with any safety notice in the same place it takes above a report. When reads are
+missing or out of date, a button makes them, as `profile --update` does, and it is the
+only thing in either section that calls Claude. *Forget* asks first, as `remove` does.
+
+*Who to write to* is `nudge`: anyone a danger-tier flag was found with comes first, with
+their notice, then who is worth a message today and why, then everyone else in one line
+each, with their reasons a click away. *As things stood at another time* is `--at`.
 
 ### Over HTTP
 
@@ -783,7 +796,7 @@ prints, for `examples/sample_chat.txt`,
 | `POST /api/stats`, `/api/redact` | as `stats` and `redact`, on a transcript sent as `{"text": ...}` | local |
 | `GET /api/people`, `POST /api/people` | `list`, and `add NAME` | local |
 | `GET`, `DELETE /api/people/{name}` | `show` and `remove` | local |
-| `POST /api/people/{name}/conversations` | `add NAME FILE`, incremental as ever | local |
+| `POST /api/people/{name}/conversations` | `add NAME FILE`, incremental as ever; `?create=true` adds someone not saved yet | local |
 | `GET /api/people/{name}/profile`, `/timeline` | `profile` and `timeline` (`?by=day`) | local |
 | `GET /api/nudge`, `/api/people/{name}/nudge` | `nudge` (`?at=2026-04-14T09:00`) | local |
 | `POST /api/analyze`, `/api/flags` | the personality read and the red-flag check | Claude |
@@ -795,12 +808,14 @@ A transcript takes the options the CLI does, as fields: `owner`, `match`, `dates
 back as data and again as `text`, the exact words the CLI prints, notice first, so a
 client never has to re-create the reviewed wording. A report with a safety notice also
 carries it on its own as `escalation`, with its `text` and its support numbers as
-unwrapped `routing_lines`, and the red-flag check adds `footnotes` for any flag left out. Routes that call Claude add `usage`,
+unwrapped `routing_lines`, and the red-flag check and the profile add `footnotes` for any flag left out. The nudge
+gives its closing caveat unwrapped as `caveat`. Routes that call Claude add `usage`,
 error responses included, since a refused answer is still billed. Exit codes become
 statuses: 404 for someone not saved, 409 for someone saved twice, 422 for a transcript
 or request that needs fixing or an answer Claude declined, 502 for a failed or cut-off
 call, and 503 when there is no API key. Every error has the same shape,
-`{"error": {"kind": ..., "message": ...}}`. The schema is at `/openapi.json`. FastAPI's
+`{"error": {"kind": ..., "message": ...}}`. A `wrong-person` error also gives the name
+the transcript has for them, as `match`, so a client can offer to save it under that. The schema is at `/openapi.json`. FastAPI's
 `/docs` page is turned off because it loads its scripts from a CDN.
 
 There is no sign-in, because there is no one else for it to serve. `serve` refuses any

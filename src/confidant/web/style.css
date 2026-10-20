@@ -60,7 +60,7 @@ h4 { font-size: 1rem; margin: 0 0 0.4rem; display: flex; gap: 0.5rem; align-item
 .tagline { margin: 0.25rem 0 0; color: var(--muted); }
 .local { font-size: 0.875rem; color: var(--muted); }
 
-section#upload, section#result {
+section#upload, section#result, section#people, section#digest {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -122,6 +122,39 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 .hint { font-size: 0.875rem; color: var(--muted); margin: 0.4rem 0 0; }
+
+.save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.save label { font-weight: 600; }
+.save input { width: auto; flex: 1 1 10rem; }
+
+.people { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+.people th, .people td {
+  text-align: left;
+  padding: 0.4rem 0.5rem 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.people th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.people td.num { font-variant-numeric: tabular-nums; }
+.people td.row-actions { white-space: nowrap; text-align: right; }
+.people td.row-actions button + button { margin-left: 0.25rem; }
+/* Narrow screens: drop the counts rather than scroll sideways. */
+@media (max-width: 34rem) {
+  .people .optional { display: none; }
+}
+
+.contact { margin: 0.75rem 0; }
+.contact .reasons { margin: 0.25rem 0 0; padding-left: 1.25rem; color: var(--muted); }
+.contact details summary { cursor: pointer; }
+.meta { color: var(--muted); font-size: 0.875rem; margin: 0.25rem 0 0; }
 
 .summary, .plain {
   white-space: pre-wrap;

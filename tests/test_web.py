@@ -3,15 +3,17 @@
 The page holds a private transcript, so most of these are about what it can reach: it
 loads only its own files, the browser is told to refuse anything else, and its script
 never turns text into markup. The rest keep the page and the API from drifting apart:
-every element the script looks up exists, and every route it calls is one the API has.
+every element the script looks up exists, every route it calls is one the API has, and
+the people list, profile, and nudge digest render from what the API really returns.
 
-None of this runs a browser. The script is checked for syntax with Node when Node is
-installed, and otherwise read as text.
+None of this runs a browser. When Node is installed the script is checked for syntax, and
+its renderers are run against a small stand-in for the DOM; otherwise it is read as text.
 """
 
 from __future__ import annotations
 
 import functools
+import json
 import re
 import shutil
 import subprocess
@@ -22,8 +24,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from confidant.api import UI_ASSETS, create_app
+from confidant.config import Settings
+from confidant.profile import read_conversation
 from confidant.recording import ReplayClient, recording_set
-from confidant.store import Store
+from confidant.store import ReadingKind, Store
 
 RECORDINGS = Path(__file__).parent / "fixtures" / "recorded"
 EXAMPLES = Path(__file__).parent.parent / "examples"
@@ -43,8 +47,13 @@ def isolated(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def api(tmp_path) -> TestClient:
-    app = create_app(store=functools.partial(Store, tmp_path / "confidant.db"))
+def db(tmp_path) -> Path:
+    return tmp_path / "confidant.db"
+
+
+@pytest.fixture
+def api(db) -> TestClient:
+    app = create_app(store=functools.partial(Store, db))
     return TestClient(app, base_url="http://localhost")
 
 
@@ -130,11 +139,42 @@ def test_the_script_never_treats_text_as_markup(sink):
     assert sink not in _read("app.js")
 
 
+# request("GET", "/api/people") or request("POST", person(name, "/profile/update"), ...).
+_CALL = re.compile(
+    r'request\(\s*"([A-Z]+)",\s*(?:"(/api/[a-z/]*)"|person\([\w.]+(?:,\s*"([a-z/]*)")?\))'
+)
+
+
+def _calls() -> set[tuple[str, str]]:
+    script = _read("app.js")
+    found = _CALL.findall(script)
+    # Every request( call is one the pattern understood, so none can slip past this test.
+    assert len(found) == script.count("request(") - script.count("function request(")
+    return {
+        (method, literal or f"/api/people/{{name}}{suffix}") for method, literal, suffix in found
+    }
+
+
 def test_every_route_the_script_calls_is_one_the_api_has(api):
-    called = set(re.findall(r'"(/api/[a-z/]+)"', _read("app.js")))
-    assert called == {"/api/stats", "/api/redact", "/api/analyze", "/api/flags"}
-    posts = {route.path for route in api.app.routes if "POST" in getattr(route, "methods", set())}
-    assert called <= posts
+    called = _calls()
+    assert called == {
+        ("POST", "/api/stats"),
+        ("POST", "/api/redact"),
+        ("POST", "/api/analyze"),
+        ("POST", "/api/flags"),
+        ("GET", "/api/people"),
+        ("DELETE", "/api/people/{name}"),
+        ("POST", "/api/people/{name}/conversations"),
+        ("GET", "/api/people/{name}/profile"),
+        ("POST", "/api/people/{name}/profile/update"),
+        ("GET", "/api/nudge"),
+    }
+    routes = {
+        (method, route.path)
+        for route in api.app.routes
+        for method in getattr(route, "methods", set())
+    }
+    assert called <= routes
 
 
 def test_every_element_the_script_looks_up_is_on_the_page():
@@ -188,3 +228,175 @@ def test_a_personality_read_has_no_notice(api, monkeypatch):
     data = api.post("/api/analyze", json=_transcript("sample_chat.txt")).json()
     assert data["escalation"] is None
     assert "footnotes" not in data
+
+
+def test_the_digest_at_field_is_a_moment_the_api_reads(api):
+    _save(api, "Robin", "sample_chat.txt")
+    # A datetime-local input gives minutes and no seconds.
+    response = api.get("/api/nudge", params={"at": "2026-03-10T09:00"})
+    assert response.status_code == 200
+    [robin] = response.json()["contacts"]
+    assert robin["last_message"] == "2026-03-05T21:36:00"
+
+
+# -- what the page shows ------------------------------------------------------------
+
+# A stand-in for the few DOM calls the renderers make, enough to run them under Node and
+# read back what they put on the page, in order. Each line is one node's own text.
+_HARNESS = r"""
+const fs = require("fs");
+const vm = require("vm");
+const [script, call] = process.argv.slice(2).map((p) => fs.readFileSync(p, "utf8"));
+
+class Node {
+  constructor(tag) {
+    Object.assign(this, { tagName: tag, children: [], own: "", className: "", hidden: false });
+    this.attributes = {};
+  }
+  append(...children) {
+    for (const c of children) this.children.push(typeof c === "string" ? new Text(c) : c);
+  }
+  replaceChildren(...children) { this.children = []; this.append(...children); }
+  set textContent(value) { this.children = []; this.own = String(value); }
+  get textContent() { return this.own + this.children.map((c) => c.textContent).join(""); }
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  addEventListener() {}
+  scrollIntoView() {}
+}
+class Text {
+  constructor(t) { this.own = t; this.children = []; }
+  get textContent() { return this.own; }
+}
+
+const byId = {};
+const document = {
+  createElement: (tag) => new Node(tag),
+  createTextNode: (t) => new Text(t),
+  getElementById: (id) => (byId[id] ??= new Node("div")),
+  querySelectorAll: () => [],
+  addEventListener() {},
+};
+function lines(node, out = []) {
+  if (node.own.trim()) out.push(node.own.trim());
+  for (const c of node.children) lines(c, out);
+  return out;
+}
+const context = vm.createContext({ document, window: {}, console, URLSearchParams });
+vm.runInContext(script, context);
+const { fn, args } = JSON.parse(call);
+const result = vm.runInContext(fn, context)(...args);
+const nodes = result === undefined ? [] : [result].flat();
+const ids = Object.fromEntries(
+  Object.entries(byId).map(([id, n]) => [id, { hidden: n.hidden, lines: lines(n) }]),
+);
+console.log(JSON.stringify({ lines: nodes.flatMap((n) => lines(n)), ids }));
+"""
+
+
+def _render(tmp_path, fn: str, *args) -> dict:
+    if shutil.which("node") is None:
+        pytest.skip("Node is not installed")
+    harness = tmp_path / "harness.js"
+    harness.write_text(_HARNESS, encoding="utf-8")
+    script = tmp_path / "app.js"
+    script.write_text(_read("app.js"), encoding="utf-8")
+    call = tmp_path / "call.json"
+    call.write_text(json.dumps({"fn": fn, "args": list(args)}), encoding="utf-8")
+    result = subprocess.run(
+        ["node", str(harness), str(script), str(call)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+def _save(api, name: str, example: str) -> None:
+    response = api.post(
+        f"/api/people/{name}/conversations", json=_transcript(example), params={"create": "true"}
+    )
+    assert response.status_code in (200, 201), response.text
+
+
+def _check_for_flags(db: Path, name: str) -> None:
+    with Store(db) as store:
+        [stored] = store.conversations(name)
+        read_conversation(
+            store,
+            stored,
+            ReadingKind.FLAGS,
+            settings=Settings(),
+            client=ReplayClient(RECORDINGS / "flags_pressure.json"),
+        )
+
+
+def test_the_digest_puts_the_safety_notice_before_any_suggestion(api, db, tmp_path):
+    _save(api, "Casey", "pressure_chat.txt")
+    _save(api, "Robin", "sample_chat.txt")
+    _save(api, "Robin", "sample_chat_later.txt")
+    _check_for_flags(db, "Casey")
+    data = api.get("/api/nudge", params={"at": "2026-04-14T09:00"}).json()
+
+    lines = _render(tmp_path, "digest", data)["lines"]
+    casey = data["contacts"][[c["name"] for c in data["contacts"]].index("Casey")]
+    order = [
+        lines.index(casey["headline"]),
+        lines.index("Read this first"),
+        lines.index(casey["escalation"]["headline"]),
+        lines.index("Worth a message today"),
+    ]
+    assert order == sorted(order)
+    # The suggestion comes with its reasons, and the caveat closes the digest.
+    robin = next(c for c in data["contacts"] if c["name"] == "Robin")
+    assert robin["suggested"]
+    assert all(reason in lines for reason in robin["reasons"])
+    assert lines[-1] == data["caveat"]
+
+
+def test_the_digest_with_no_one_saved_says_how_to_start(api, tmp_path):
+    lines = _render(tmp_path, "digest", api.get("/api/nudge").json())["lines"]
+    assert lines == ["No one saved yet. Save a conversation above to start."]
+
+
+def test_a_profile_shows_its_notice_first_and_every_flag_and_footnote(api, db, tmp_path):
+    _save(api, "Casey", "pressure_chat.txt")
+    _check_for_flags(db, "Casey")
+    data = api.get("/api/people/Casey/profile", params={"region": "GB"}).json()
+
+    shown = _render(tmp_path, "showProfile", data)["ids"]
+    # The notice is the page's own block above the report, as for a single check.
+    assert shown["escalation"]["hidden"] is False
+    assert data["escalation"]["headline"] in shown["escalation"]["lines"]
+    assert "In the United Kingdom:" in shown["escalation"]["lines"]
+    assert shown["result-title"]["lines"] == ["Casey"]
+
+    report = shown["report"]["lines"]
+    assert report[0] == "1 conversation, 10 messages"
+    assert "Not read yet." in report
+    for flag in data["flags"]:
+        assert flag["behavior"] in report
+    assert all(note in report for note in data["footnotes"])
+    # The personality read was never made, so the page offers to make it, and says
+    # what that sends.
+    assert "Bring 1 read up to date" in report
+    assert any("sends the redacted conversations" in line for line in report)
+
+
+def test_a_profile_with_nothing_saved_says_so(api, tmp_path):
+    api.post("/api/people", json={"name": "Robin"})
+    data = api.get("/api/people/Robin/profile").json()
+    lines = _render(tmp_path, "profile", data)["lines"]
+    assert lines == [
+        "0 conversations, 0 messages",
+        "Nothing saved yet. Save a conversation above under Robin.",
+    ]
+
+
+def test_the_people_list_shows_each_person_with_their_counts(api, tmp_path):
+    _save(api, "Robin", "sample_chat.txt")
+    _save(api, "Casey", "pressure_chat.txt")
+    lines = _render(tmp_path, "peopleTable", api.get("/api/people").json())["lines"]
+    assert lines[:4] == ["Name", "Conversations", "Messages", "Last message"]
+    assert lines[4:9] == ["Casey", "1", "10", "2026-04-12 09:20", "Profile"]
+    assert lines[10:15] == ["Robin", "1", "17", "2026-03-05 21:36", "Profile"]
