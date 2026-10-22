@@ -494,7 +494,9 @@ def _run_serve(args: argparse.Namespace) -> int:
         from confidant.api import create_app, is_local_host
     except ImportError:
         print(
-            "confidant: serve needs the API extra. Install it with: pip install 'confidant[api]'",
+            "confidant: serve needs the API extra. Install it with: "
+            "pip install 'confidant-agent[api]', or for a pipx install: "
+            "pipx inject confidant-agent fastapi uvicorn",
             file=sys.stderr,
         )
         return 2
@@ -546,7 +548,7 @@ many tokens they used and roughly what that cost.
 draft never sends a message: it prints suggestions and you do the rest.
 serve offers all of this over HTTP, to this machine only.
 
-environment (or put these in .env):
+environment (or in ./.env, then ~/.confidant/.env; the shell wins over both):
   ANTHROPIC_API_KEY     needed for analyze, flags, draft, comfort, ask, chat,
                         and profile --update
   CONFIDANT_DB          the local store, default ~/.confidant/confidant.db
@@ -862,7 +864,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "HTTP, on the same store "
             "and the same checks. It listens on this machine only and has no sign-in, so "
             "a host other than localhost, 127.0.0.1, or ::1 is refused. Needs the API "
-            "extra: pip install 'confidant[api]'."
+            "extra: pip install 'confidant-agent[api]' (or, for a pipx install, pipx inject "
+            "confidant-agent fastapi uvicorn)."
         ),
     )
     serve.add_argument("--host", default="127.0.0.1", help="Default: 127.0.0.1.")

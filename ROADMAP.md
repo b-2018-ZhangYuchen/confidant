@@ -44,13 +44,15 @@ need something else first, and that reordering is part of the record.
 - [x] **Fri Oct 16** — FastAPI backend over the same core
 - [x] **Sat Oct 17** — Web UI: transcript upload and report view
 - [x] **Sun Oct 18** — Web UI: the people list and the nudge digest
-- [ ] **Mon Oct 19** — Packaging, `pipx install confidant`, and a v0.2 release
+- [x] **Mon Oct 19** — Packaging, `pipx install confidant-agent`, and a v0.2 release
 
-## Needs a live run
+## Needs a live run, or the owner
 
-The daily build has no API key, so it cannot make these calls; they wait for a machine
-that can.
+The daily build has no API key and no PyPI account, so it cannot do these; they wait
+for a machine, or a person, that can.
 
+- [ ] **Needs the owner** — Add `confidant-agent` on PyPI as a trusted publisher for
+  `release.yml` (environment `pypi`), then push the `v0.2.0` tag
 - [ ] **Needs a key** — Hill-climb the personality prompt against the eval: baseline, change, `compare`, keep or revert
 
 ## Later

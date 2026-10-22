@@ -450,4 +450,6 @@ def test_serve_runs_on_localhost_without_an_access_log(capsys, monkeypatch):
 def test_serve_without_the_api_extra_says_how_to_get_it(capsys, monkeypatch):
     monkeypatch.setitem(sys.modules, "uvicorn", None)
     assert main(["serve"]) == 2
-    assert "pip install 'confidant[api]'" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "pip install 'confidant-agent[api]'" in err
+    assert "pipx inject confidant-agent fastapi uvicorn" in err

@@ -190,8 +190,8 @@ def build_client(settings: Settings | None = None) -> anthropic.Anthropic:
     settings = settings or Settings.from_env()
     if not _credentials_available(settings):
         raise ConfigError(
-            "No Anthropic credentials found. Copy .env.example to .env and set "
-            "ANTHROPIC_API_KEY, or export it in your shell. "
+            "No Anthropic credentials found. Set ANTHROPIC_API_KEY in ~/.confidant/.env "
+            "(or a .env in this directory), or export it in your shell. "
             "(`confidant stats` and `confidant redact` work without a key.)"
         )
     return anthropic.Anthropic(api_key=settings.api_key)
@@ -350,7 +350,7 @@ def describe_api_error(exc: anthropic.APIError, settings: Settings) -> str:
     if isinstance(exc, anthropic.AuthenticationError):
         return (
             "The Anthropic API did not accept these credentials. Check ANTHROPIC_API_KEY "
-            "in .env or your shell."
+            "in your shell, ./.env, or ~/.confidant/.env."
         )
     if isinstance(exc, anthropic.NotFoundError):
         return (

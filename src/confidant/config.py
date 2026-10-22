@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 
@@ -16,6 +16,12 @@ DEFAULT_EFFORT: Effort = "high"
 DEFAULT_MAX_TOKENS = 16_000
 
 _VALID_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def user_env_file() -> Path:
+    """``~/.confidant/.env``: settings that hold wherever Confidant is run from."""
+    # Beside the store, so one private directory holds everything Confidant keeps.
+    return Path.home() / ".confidant" / ".env"
 
 
 class ConfigError(RuntimeError):
@@ -33,8 +39,21 @@ class Settings:
 
     @classmethod
     def from_env(cls, *, env_file: str | Path | None = None) -> Settings:
-        """Load settings from ``.env`` (if present) and the process environment."""
-        load_dotenv(env_file) if env_file else load_dotenv()
+        """Load settings from the environment, then ``.env`` files, in that order of priority.
+
+        The shell wins, then a ``.env`` in (or above) the working directory, then
+        ``~/.confidant/.env``. ``load_dotenv`` never overrides a variable already set, so
+        loading the nearer file first is what gives it priority.
+        """
+        if env_file:
+            load_dotenv(env_file)
+        else:
+            # python-dotenv's default search starts from this file's directory, which under
+            # a pipx install is a virtualenv nobody keeps a .env in.
+            local = find_dotenv(usecwd=True)
+            if local:
+                load_dotenv(local)
+            load_dotenv(user_env_file())
 
         effort = os.getenv("CONFIDANT_EFFORT", DEFAULT_EFFORT).lower()
         if effort not in _VALID_EFFORTS:

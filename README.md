@@ -47,29 +47,64 @@ Early and honest about it. Working today:
 | ✅ | `confidant serve` — the same commands as a JSON API over HTTP, on this machine only |
 | ✅ | A web UI at `confidant serve`'s address — upload a transcript or an export, read it locally, see what would be sent, and get the personality read or red-flag check as a report, safety notice first |
 | ✅ | The people you have saved and who to write to, in the same page — save a conversation, open a profile, bring its reads up to date, and read the nudge digest, safety notices first |
+| ✅ | `pipx install confidant-agent` — one command to install, settings in `~/.confidant/.env`, and a release workflow that builds, checks, and publishes each tagged version |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
 
 ## Install
+
+Confidant is a command-line tool, so install it with [pipx](https://pipx.pypa.io/), which
+gives it a virtualenv of its own and puts `confidant` on your path. On PyPI it is
+**`confidant-agent`**, because `confidant` there is an unrelated project; the command is
+still `confidant`.
+
+```bash
+pipx install confidant-agent
+```
+
+Until v0.2.0 is on PyPI, install the same thing straight from GitHub:
+
+```bash
+pipx install git+https://github.com/b-2018-ZhangYuchen/confidant.git
+```
+
+For `confidant serve` you also need the API extra:
+
+```bash
+pipx install "confidant-agent[api]"
+```
+
+or, for an install made from GitHub, add its two packages to the same environment:
+
+```bash
+pipx inject confidant-agent fastapi uvicorn
+```
+
+Then give it your API key. `~/.confidant/` is where Confidant keeps its store too, so
+one private folder holds everything:
+
+```bash
+mkdir -p -m 700 ~/.confidant
+echo 'ANTHROPIC_API_KEY=sk-ant-...' > ~/.confidant/.env && chmod 600 ~/.confidant/.env
+```
+
+`confidant --version` should print `confidant 0.2.0`. The example transcripts used
+below are in the repository's [`examples/`](examples/) folder.
+
+### From a checkout
+
+To work on Confidant itself:
 
 ```bash
 git clone git@github.com:b-2018-ZhangYuchen/confidant.git
 cd confidant
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-```
-
-For `confidant serve`, add the API extra (the dev install already has it):
-
-```bash
-pip install -e ".[api]"
-```
-
-Then set your API key:
-
-```bash
 cp .env.example .env    # add your ANTHROPIC_API_KEY
 ```
+
+The dev install includes the API extra. A `.env` in the directory you run from is read
+before `~/.confidant/.env`, so the checkout's own key wins inside the checkout.
 
 ## Use
 
@@ -908,8 +943,9 @@ Your chat history is about as private as data gets, and this repo is built aroun
 
 ## Settings and exit codes
 
-Everything is set through the environment, or a `.env` file in the directory you run
-from:
+Everything is set through the environment, or a `.env` file. The shell wins, then a
+`.env` in the directory you run from (or the nearest one above it), then
+`~/.confidant/.env`; a setting one file leaves out still comes from the next.
 
 | Variable | Default | |
 |---|---|---|

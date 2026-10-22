@@ -68,7 +68,9 @@ put back only in the report the owner reads. The model does not need to know who
 is to read how they write. Conversations Confidant remembers, and the reads it has made of them, are kept in a single SQLite file in the owner's home
 directory, private to their user account, and overwritten rather than merely unlinked
 when they ask for someone to be forgotten. The `.gitignore` blocks conversation data and `.env` before anyone can
-commit them by accident. The only conversations in this repository are fictional.
+commit them by accident. The package published for each release is built from an allowlist of folders, not
+from whatever is in the working tree, so an untracked export sitting next to the code
+cannot ride along into it. The only conversations in this repository are fictional.
 
 Comfort mode is the one place the person at risk may be the owner. When anything they
 wrote suggests they might hurt themselves, the same rule applies: the model notices, and

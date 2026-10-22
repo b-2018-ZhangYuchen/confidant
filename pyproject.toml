@@ -3,8 +3,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "confidant"
-version = "0.1.0"
+# "confidant" on PyPI is an unrelated project, so the distribution needs its own name; the
+# package you import and the command you run are both still `confidant`.
+name = "confidant-agent"
+dynamic = ["version"]
 description = "An AI agent that helps you think clearly about the people you date."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,7 +36,9 @@ api = [
   "uvicorn>=0.30",
 ]
 dev = [
-  "confidant[api]",
+  "confidant-agent[api]",
+  # tests/test_packaging.py builds the wheel and sdist in-process with it.
+  "hatchling>=1.21",
   # FastAPI's TestClient runs on it; the suite never opens a socket with it.
   "httpx>=0.27",
   "pytest>=8.0",
@@ -48,8 +52,27 @@ confidant = "confidant.cli:main"
 Homepage = "https://github.com/b-2018-ZhangYuchen/confidant"
 Issues = "https://github.com/b-2018-ZhangYuchen/confidant/issues"
 
+[tool.hatch.version]
+path = "src/confidant/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/confidant"]
+
+[tool.hatch.build.targets.sdist]
+# An allowlist, not the default of "everything git does not ignore": a working tree for
+# this project is exactly where an untracked chat export or a stray document sits, and an
+# sdist is published to the world.
+only-include = [
+  "src",
+  "tests",
+  "examples",
+  "docs",
+  "README.md",
+  "ROADMAP.md",
+  "CHANGELOG.md",
+  "LICENSE",
+  ".env.example",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
