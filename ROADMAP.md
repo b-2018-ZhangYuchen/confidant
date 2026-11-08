@@ -72,7 +72,7 @@ Rules for these weeks:
 
 ### Week 5 — Choosing a model, building the data (steps 1–2)
 
-- [ ] **Thu Nov 05** — A `Backend` protocol for the red-flag check (Claude, local
+- [x] **Thu Nov 05** — A `Backend` protocol for the red-flag check (Claude, local
   `mlx-lm`, fake), with grounding, minimum severities, and the safety notice applied the
   same way whatever produced the report
 - [ ] **Fri Nov 06** — Model selection: `lab models` loads each candidate (small current

@@ -18,6 +18,13 @@ leave to the prompt alone:
 When a tier-3 flag survives both, the report carries an :class:`~confidant.safety.Escalation`
 and leads with it. What that notice says lives in ``confidant.safety``.
 
+What reads the transcript is a :class:`FlagBackend`: Claude by default, a local model from
+``confidant.lab``, or a :class:`FakeBackend` in tests. A backend only turns a redacted
+conversation into a raw :class:`FlagScan`. Redaction, grounding, the severity floors, and
+the safety notice all happen here, in :func:`analyze_flags`, so none of them can be left
+out by a backend that forgot them, and a small local model gets no more benefit of the
+doubt than Claude does.
+
 The model only ever sees a redacted transcript (see ``confidant.redaction``), so grounding
 runs against that same redacted text, and names and details are put back last.
 """
@@ -27,7 +34,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Callable
-from typing import Literal
+from typing import Literal, Protocol, runtime_checkable
 
 import anthropic
 from pydantic import BaseModel, Field
@@ -46,7 +53,10 @@ __all__ = [
     "DANGER_CATEGORIES",
     "TIERS",
     "Category",
+    "ClaudeBackend",
+    "FakeBackend",
     "Flag",
+    "FlagBackend",
     "FlagReport",
     "FlagScan",
     "Severity",
@@ -288,28 +298,122 @@ def ground_flags(scan: FlagScan, conversation: Conversation) -> FlagReport:
     )
 
 
+# -- backends ---------------------------------------------------------------
+
+
+@runtime_checkable
+class FlagBackend(Protocol):
+    """Something that can read a conversation and return a raw red-flag scan.
+
+    ``conversation`` has already been redacted. A backend returns what its model said and
+    nothing more: it does not ground quotes, raise severities, or decide on a safety
+    notice, because :func:`analyze_flags` does all three the same way for every backend.
+    ``on_progress`` and ``on_usage`` may be ignored by a backend that has nothing to say
+    through them; a local model has no bill.
+    """
+
+    name: str
+
+    def scan(
+        self,
+        conversation: Conversation,
+        *,
+        on_progress: Callable[[Progress], None] | None = None,
+        on_usage: Callable[[Usage], None] | None = None,
+    ) -> FlagScan: ...
+
+
+class ClaudeBackend:
+    """The red-flag check as Confidant has always run it: one structured call to Claude."""
+
+    name = "claude"
+
+    def __init__(
+        self,
+        *,
+        settings: Settings | None = None,
+        client: anthropic.Anthropic | None = None,
+    ) -> None:
+        self.settings = settings
+        self.client = client
+
+    def scan(
+        self,
+        conversation: Conversation,
+        *,
+        on_progress: Callable[[Progress], None] | None = None,
+        on_usage: Callable[[Usage], None] | None = None,
+    ) -> FlagScan:
+        return structured_call(
+            schema=FlagScan,
+            system=FLAGS_SYSTEM,
+            user_content=build_flags_request(conversation),
+            settings=self.settings,
+            client=self.client,
+            on_progress=on_progress,
+            on_usage=on_usage,
+        )
+
+
+class FakeBackend:
+    """Answers with scans given in advance, and remembers what it was shown.
+
+    For tests, and for lab code that needs a backend without a model. Given one scan it
+    answers with it every time; given several, it answers with them in order and raises
+    once they run out, so a test that makes more calls than it planned for fails loudly.
+    """
+
+    name = "fake"
+
+    def __init__(self, *scans: FlagScan | Callable[[Conversation], FlagScan]) -> None:
+        if not scans:
+            raise ValueError("FakeBackend needs at least one scan to answer with")
+        self._scans = list(scans)
+        self._repeat = len(scans) == 1
+        self.seen: list[Conversation] = []
+
+    def scan(
+        self,
+        conversation: Conversation,
+        *,
+        on_progress: Callable[[Progress], None] | None = None,
+        on_usage: Callable[[Usage], None] | None = None,
+    ) -> FlagScan:
+        self.seen.append(conversation)
+        if self._repeat:
+            answer = self._scans[0]
+        elif self._scans:
+            answer = self._scans.pop(0)
+        else:
+            raise AssertionError("FakeBackend was asked for more scans than it was given")
+        return answer(conversation) if callable(answer) else answer.model_copy(deep=True)
+
+
 def analyze_flags(
     conversation: Conversation,
     *,
+    backend: FlagBackend | None = None,
     settings: Settings | None = None,
     client: anthropic.Anthropic | None = None,
     on_progress: Callable[[Progress], None] | None = None,
     on_usage: Callable[[Usage], None] | None = None,
 ) -> FlagReport:
-    """Check the match in ``conversation`` for red flags, grounded against the transcript."""
+    """Check the match in ``conversation`` for red flags, grounded against the transcript.
+
+    ``backend`` defaults to Claude, built from ``settings`` and ``client``. Whatever
+    backend is used, it sees only the redacted conversation, and its scan goes through
+    the same grounding, severity floors, and escalation before anyone reads it.
+    """
     if not conversation.match_messages:
         raise ValueError(
             f"{conversation.match_name} has no messages in this transcript — nothing to check."
         )
+    if backend is None:
+        backend = ClaudeBackend(settings=settings, client=client)
+    elif settings is not None or client is not None:
+        # Silently ignoring them would let a caller believe a setting took effect.
+        raise TypeError("settings and client configure the Claude backend; pass one or the other")
 
     redaction = redact(conversation)
-    scan = structured_call(
-        schema=FlagScan,
-        system=FLAGS_SYSTEM,
-        user_content=build_flags_request(redaction.conversation),
-        settings=settings,
-        client=client,
-        on_progress=on_progress,
-        on_usage=on_usage,
-    )
+    scan = backend.scan(redaction.conversation, on_progress=on_progress, on_usage=on_usage)
     return redaction.restore(ground_flags(scan, redaction.conversation))

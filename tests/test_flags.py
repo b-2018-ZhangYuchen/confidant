@@ -8,7 +8,10 @@ import pytest
 
 from confidant.analysis.flags import (
     DANGER_CATEGORIES,
+    ClaudeBackend,
+    FakeBackend,
     Flag,
+    FlagBackend,
     FlagReport,
     FlagScan,
     analyze_flags,
@@ -238,6 +241,66 @@ def test_analyze_flags_refuses_a_one_sided_transcript(monkeypatch):
     conversation = parse_transcript("# owner: Sam\n# match: Robin\nSam: hello?\n")
     with pytest.raises(ValueError, match="nothing to check"):
         analyze_flags(conversation)
+
+
+# -- backends -------------------------------------------------------------
+
+
+def test_backends_meet_the_protocol():
+    assert isinstance(ClaudeBackend(), FlagBackend)
+    assert isinstance(FakeBackend(scan()), FlagBackend)
+
+
+def test_any_backend_sees_only_the_redacted_conversation(pressure):
+    backend = FakeBackend(scan())
+    analyze_flags(pressure, backend=backend)
+
+    [seen] = backend.seen
+    rendered = build_flags_request(seen)
+    assert "Casey" not in rendered and "Jordan" not in rendered
+
+
+def test_any_backend_is_grounded_floored_and_escalated(pressure):
+    # A backend that invents a quote and plays down monitoring gets no benefit of the doubt.
+    backend = FakeBackend(
+        scan(
+            flag("who are you with right now", category="monitoring", severity="watch"),
+            flag("a line Casey never wrote"),
+        )
+    )
+    report = analyze_flags(pressure, backend=backend)
+
+    assert [f.severity for f in report.flags] == ["danger"]
+    assert report.discarded == 1
+    assert report.escalation is not None
+
+
+def test_names_are_restored_in_what_a_backend_returns(pressure):
+    def answer(conversation):
+        return FlagScan(flags=[], summary=f"{conversation.match_name} is fine.", confidence="low")
+
+    report = analyze_flags(pressure, backend=FakeBackend(answer))
+    assert report.summary == "Casey is fine."
+
+
+def test_settings_and_a_backend_cannot_both_be_given(pressure):
+    with pytest.raises(TypeError, match="one or the other"):
+        analyze_flags(pressure, backend=FakeBackend(scan()), client=object())
+
+
+def test_fake_backend_answers_in_order_then_fails_loudly(pressure):
+    first, second = scan(), scan(flag("who are you with right now"))
+    backend = FakeBackend(first, second)
+    assert backend.scan(pressure) == first
+    assert backend.scan(pressure) == second
+    with pytest.raises(AssertionError, match="more scans"):
+        backend.scan(pressure)
+
+
+def test_fake_backend_does_not_share_its_scan_between_calls(pressure):
+    backend = FakeBackend(scan(flag("who are you with right now")))
+    backend.scan(pressure).flags.clear()
+    assert len(backend.scan(pressure).flags) == 1
 
 
 # -- the CLI --------------------------------------------------------------

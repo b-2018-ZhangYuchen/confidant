@@ -35,6 +35,11 @@ api = [
   "fastapi>=0.110",
   "uvicorn>=0.30",
 ]
+# `confidant.lab`: local models. mlx-lm runs only on Apple silicon, and nothing outside
+# the lab imports it, so the core install and CI never need it.
+lab = [
+  "mlx-lm>=0.28; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 dev = [
   "confidant-agent[api]",
   # tests/test_packaging.py builds the wheel and sdist in-process with it.
