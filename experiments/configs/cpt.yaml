@@ -1,0 +1,21 @@
+# Continued pre-training: QLoRA, causal-LM loss on the dialogue + background corpus.
+kind: cpt
+name: cpt
+model: mlx-community/Qwen2.5-3B-Instruct-4bit
+data: lab-cache/corpus
+fine_tune_type: lora
+num_layers: 16
+batch_size: 4
+iters: 600
+learning_rate: 1.0e-4
+max_seq_length: 512
+grad_checkpoint: true
+steps_per_report: 20
+steps_per_eval: 100
+val_batches: 25
+save_every: 200
+seed: 0
+adapter_path: lab-cache/adapters/cpt
+lora_parameters: {rank: 8, scale: 20.0, dropout: 0.0}
+# Folded into the base afterwards, so the fine-tune can start from it.
+fuse_to: lab-cache/models/qwen2.5-3b-cpt

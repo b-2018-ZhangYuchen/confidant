@@ -6,6 +6,20 @@ model is actually loaded, so the package itself imports anywhere and is tested o
 against a fake generator.
 """
 
-from confidant.lab.backend import LocalOutputError, MlxBackend, build_local_messages, parse_scan
+from confidant.lab.backend import (
+    GenerationStats,
+    LocalModel,
+    LocalOutputError,
+    MlxBackend,
+    build_local_messages,
+    parse_scan,
+)
 
-__all__ = ["LocalOutputError", "MlxBackend", "build_local_messages", "parse_scan"]
+__all__ = [
+    "GenerationStats",
+    "LocalModel",
+    "LocalOutputError",
+    "MlxBackend",
+    "build_local_messages",
+    "parse_scan",
+]

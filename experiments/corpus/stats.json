@@ -1,0 +1,21 @@
+{
+  "documents": 6107,
+  "train": 5924,
+  "valid": 183,
+  "words": 947234,
+  "counts": {
+    "dailydialog": 2000,
+    "dailydialog:duplicate": 10,
+    "dailydialog:too_short": 869,
+    "empathetic": 2000,
+    "empathetic:too_short": 113,
+    "persona": 2000,
+    "wikipedia": 107
+  },
+  "licenses": {
+    "dailydialog": "CC BY-NC-SA 4.0",
+    "empathetic": "CC BY-NC 4.0",
+    "persona": "CC BY 4.0",
+    "wikipedia": "CC BY-SA 4.0"
+  }
+}

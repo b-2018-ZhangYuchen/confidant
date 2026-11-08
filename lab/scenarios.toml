@@ -1,0 +1,896 @@
+# The scenario grid for the lab's labelled data. Entirely fictional.
+#
+# Each scenario is a seed: a setting, and the exact lines the match must say. A local
+# model writes the rest of the conversation around them (`python -m confidant.lab
+# generate`), several times per scenario with different names, lengths, and tones. The
+# label comes from here, never from the generator: the planted lines are the evidence, and
+# `category` and `severity` are what a careful read should file them as.
+#
+# kind = "flag"           planted lines a careful read should flag
+# kind = "hard_negative"  planted lines that look like a flag and are not one
+# kind = "clean"          no planted lines; an ordinary conversation
+#
+# Severity follows the tier definitions in confidant/prompts/flags.py. The danger
+# categories (threat, coercion, sexual_pressure, isolation, monitoring) are always
+# danger; analyze_flags enforces that floor whatever a model files them as.
+#
+# No line here may appear in examples/eval/ (the gold set); `python -m confidant.lab
+# check` enforces it.
+
+# -- threat ---------------------------------------------------------------------------
+
+[[scenario]]
+id = "threat-01"
+kind = "flag"
+category = "threat"
+severity = "danger"
+setting = "they have been on four dates; the owner says they want to slow things down"
+planted = ["if you end this you'll regret it, I promise you that"]
+behavior = "Answers the owner slowing things down with a warning that they will regret it."
+why = "A promise of consequences for leaving is a threat, however it is worded."
+
+[[scenario]]
+id = "threat-02"
+kind = "flag"
+category = "threat"
+severity = "danger"
+setting = "the owner did not reply for a day because of work"
+planted = ["nobody ignores me like that. I know where your office is"]
+behavior = "Responds to a slow reply by pointing out they know where the owner works."
+why = "Naming where someone can be found, in anger, is an implied threat."
+
+[[scenario]]
+id = "threat-03"
+kind = "flag"
+category = "threat"
+severity = "danger"
+setting = "the owner mentions having coffee with an ex to return some books"
+planted = ["tell him if he texts you again I'll make sure he can't", "I'm not joking about this"]
+behavior = "Threatens the owner's ex and insists they are serious."
+why = "A threat against someone in the owner's life is still a threat, and a warning sign about the match."
+
+[[scenario]]
+id = "threat-04"
+kind = "flag"
+category = "threat"
+severity = "danger"
+setting = "the owner cancels a dinner because they feel unwell"
+planted = ["you really don't want to see me angry. cancel on me again and see what happens"]
+behavior = "Warns the owner about what happens if they cancel again."
+why = "An open-ended 'see what happens' tied to anger is a threat."
+
+[[scenario]]
+id = "threat-05"
+kind = "flag"
+category = "threat"
+severity = "danger"
+setting = "the owner says the photos they sent earlier were private and asks the match to delete them"
+planted = ["maybe I'll just send them to your sister and see how private they are"]
+behavior = "Threatens to share private photos with the owner's family."
+why = "Threatening to share intimate images is a serious threat and in many places a crime."
+
+# -- coercion -------------------------------------------------------------------------
+
+[[scenario]]
+id = "coercion-01"
+kind = "flag"
+category = "coercion"
+severity = "danger"
+setting = "the owner says they cannot come over tonight"
+planted = ["if you loved me you'd be here. get in a cab now or don't bother texting me again"]
+behavior = "Makes the relationship conditional on the owner coming over immediately."
+why = "An ultimatum that trades affection for compliance is coercion."
+
+[[scenario]]
+id = "coercion-02"
+kind = "flag"
+category = "coercion"
+severity = "danger"
+setting = "the owner wants to keep their own apartment for now"
+planted = ["give me a key by friday or I'll assume you're hiding something", "I'm done being patient"]
+behavior = "Demands a key by a deadline and treats refusal as proof of hiding something."
+why = "Deadlines with a punishment attached are pressure to comply, not a request."
+
+[[scenario]]
+id = "coercion-03"
+kind = "flag"
+category = "coercion"
+severity = "danger"
+setting = "the owner says they would rather not hand over their phone passcode"
+planted = ["either you show me your phone tonight or we're finished. your choice"]
+behavior = "Gives an ultimatum to hand over the owner's phone."
+why = "Forcing access with an ultimatum is coercive, whatever the reason given."
+
+[[scenario]]
+id = "coercion-04"
+kind = "flag"
+category = "coercion"
+severity = "danger"
+setting = "the owner plans to visit their parents for the weekend"
+planted = ["you're not going. I already told you how this weekend is going to go", "don't make me ask twice"]
+behavior = "Tells the owner they are not allowed to make their own weekend plans."
+why = "Deciding where the owner may go, and implying consequences, is control by force of will."
+
+[[scenario]]
+id = "coercion-05"
+kind = "flag"
+category = "coercion"
+severity = "danger"
+setting = "the owner asks for a few days to think about moving in together"
+planted = ["I already gave notice on my place, so you don't really get to say no now"]
+behavior = "Presents a decision as already made to remove the owner's choice."
+why = "Creating a fait accompli to force agreement is coercion."
+
+# -- sexual_pressure ------------------------------------------------------------------
+
+[[scenario]]
+id = "sexual-01"
+kind = "flag"
+category = "sexual_pressure"
+severity = "danger"
+setting = "the owner says they want to take things slowly physically"
+planted = ["come on, we're adults. you owe me after dinner", "stop being such a tease"]
+behavior = "Says the owner owes them after a date and calls the owner a tease for saying no."
+why = "Treating a date as a debt to be repaid physically is sexual pressure."
+
+[[scenario]]
+id = "sexual-02"
+kind = "flag"
+category = "sexual_pressure"
+severity = "danger"
+setting = "they matched yesterday and are chatting for the first time"
+planted = ["send me something spicy first, then I'll know you're serious", "everyone sends pics, don't be weird"]
+behavior = "Asks for explicit photos as a test, and pushes when it is not offered."
+why = "Pressing for explicit images, especially early, is sexual pressure."
+
+[[scenario]]
+id = "sexual-03"
+kind = "flag"
+category = "sexual_pressure"
+severity = "danger"
+setting = "the owner said no to staying over last weekend"
+planted = ["you said no last time, but you didn't really mean it, right?"]
+behavior = "Recasts the owner's earlier no as something they did not mean."
+why = "Reinterpreting a no as a yes is a direct disregard of consent."
+
+[[scenario]]
+id = "sexual-04"
+kind = "flag"
+category = "sexual_pressure"
+severity = "danger"
+setting = "they are planning a second date"
+planted = ["I'll only drive out there if it's at your place and you know what that means"]
+behavior = "Makes meeting up conditional on sex."
+why = "Setting sex as the price of a date is pressure, not a preference."
+
+[[scenario]]
+id = "sexual-05"
+kind = "flag"
+category = "sexual_pressure"
+severity = "danger"
+setting = "the owner mentions they had a couple of drinks with friends"
+planted = ["perfect, you're more fun when you've had a few. come over before you sober up"]
+behavior = "Wants the owner to come over specifically while drunk."
+why = "Seeking someone out because alcohol lowers their guard is a serious consent concern."
+
+# -- financial_pressure ---------------------------------------------------------------
+
+[[scenario]]
+id = "money-01"
+kind = "flag"
+category = "financial_pressure"
+severity = "danger"
+setting = "they matched two weeks ago and have never met in person"
+planted = ["my crypto coach doubled my savings in a month. put in two thousand and I'll show you how"]
+behavior = "Pushes an investment scheme on someone they have never met."
+why = "Investment pitches from online matches who have not met are a common scam pattern."
+
+[[scenario]]
+id = "money-02"
+kind = "flag"
+category = "financial_pressure"
+severity = "danger"
+setting = "the match says they work abroad on an oil rig and have been chatting for a month"
+planted = ["my account is frozen and I need 800 for customs today, I'll pay you back the moment I land"]
+behavior = "Asks someone they have never met for urgent money with a repayment promise."
+why = "An urgent request for money from a match met only online is a classic romance-scam sign."
+
+[[scenario]]
+id = "money-03"
+kind = "flag"
+category = "financial_pressure"
+severity = "concern"
+setting = "they have been on three dates and the match always forgets their wallet"
+planted = ["can you get this one too? payday is next week, I swear", "you're better with money than me anyway"]
+behavior = "Repeatedly asks the owner to pay, with flattery to smooth it over."
+why = "A pattern of the owner always paying is worth noticing early."
+innocent = "They may genuinely be short until payday and embarrassed about it."
+
+[[scenario]]
+id = "money-04"
+kind = "flag"
+category = "financial_pressure"
+severity = "concern"
+setting = "they have been seeing each other for a month"
+planted = ["just lend me your card for the weekend, it's easier than me transferring you later"]
+behavior = "Asks to borrow the owner's bank card."
+why = "Asking to hold someone's card early on gives the match control of their money."
+innocent = "They may see it as a convenience and not have thought about how it sounds."
+
+[[scenario]]
+id = "money-05"
+kind = "flag"
+category = "financial_pressure"
+severity = "danger"
+setting = "they matched last week; the match is very affectionate"
+planted = ["buy me gift cards and send the codes, it's the only way I can get them here", "please, I have nobody else"]
+behavior = "Asks for gift card codes and leans on having no one else to ask."
+why = "Gift card codes are a scammer's favourite payment, because they cannot be traced or recovered."
+
+# -- isolation ------------------------------------------------------------------------
+
+[[scenario]]
+id = "isolation-01"
+kind = "flag"
+category = "isolation"
+severity = "danger"
+setting = "the owner mentions a weekly dinner with their best friend"
+planted = ["your friends are a bad influence. you don't need them now that you have me"]
+behavior = "Tells the owner they do not need their friends any more."
+why = "Encouraging someone to drop their friends cuts them off from support."
+
+[[scenario]]
+id = "isolation-02"
+kind = "flag"
+category = "isolation"
+severity = "danger"
+setting = "the owner says their sister is visiting for a week"
+planted = ["every time your sister visits you change. tell her it's not a good time"]
+behavior = "Asks the owner to turn away their sister's visit."
+why = "Steering someone away from family is a classic isolation pattern."
+
+[[scenario]]
+id = "isolation-03"
+kind = "flag"
+category = "isolation"
+severity = "danger"
+setting = "the owner wants to go to a work party"
+planted = ["why do you need to go out at all? we can just stay in, it's better when it's only us", "I don't like you being around those people"]
+behavior = "Discourages the owner from going out and from seeing colleagues."
+why = "Framing time with others as a threat to the relationship isolates the owner."
+
+[[scenario]]
+id = "isolation-04"
+kind = "flag"
+category = "isolation"
+severity = "danger"
+setting = "the owner mentions they talked to their mum about the relationship"
+planted = ["stop telling your mum about us. what happens between us stays between us"]
+behavior = "Asks the owner to stop confiding in their mother."
+why = "Asking someone to keep the relationship secret from family removes a check on it."
+
+[[scenario]]
+id = "isolation-05"
+kind = "flag"
+category = "isolation"
+severity = "danger"
+setting = "the owner has a hobby group that meets twice a month"
+planted = ["quit that group. it's me or them, I'm not sharing you"]
+behavior = "Demands the owner quit a social group."
+why = "Making the owner choose between the relationship and their community is isolation."
+
+# -- monitoring -----------------------------------------------------------------------
+
+[[scenario]]
+id = "monitoring-01"
+kind = "flag"
+category = "monitoring"
+severity = "danger"
+setting = "the owner is at a bar with coworkers"
+planted = ["send me a photo of who's at your table right now. a real one, not an old one"]
+behavior = "Demands a live photo to check who the owner is with."
+why = "Requiring proof of company in real time is surveillance."
+
+[[scenario]]
+id = "monitoring-02"
+kind = "flag"
+category = "monitoring"
+severity = "danger"
+setting = "they have been dating for three weeks"
+planted = ["turn on location sharing with me. if you've got nothing to hide it shouldn't matter"]
+behavior = "Pushes for permanent location sharing and frames refusal as suspicious."
+why = "Insisting on tracking someone's location is monitoring, whatever it is called."
+
+[[scenario]]
+id = "monitoring-03"
+kind = "flag"
+category = "monitoring"
+severity = "danger"
+setting = "the owner went for a run and did not reply for an hour"
+planted = ["I saw you were active on instagram 20 minutes ago but couldn't answer me?", "I check, you know"]
+behavior = "Says they track when the owner is online and use it against them."
+why = "Watching someone's activity to catch them out is monitoring."
+
+[[scenario]]
+id = "monitoring-04"
+kind = "flag"
+category = "monitoring"
+severity = "danger"
+setting = "the owner mentions changing their email password"
+planted = ["why would you change it? I need your password so I know you're not talking to anyone"]
+behavior = "Asks for the owner's password to check who they talk to."
+why = "Demanding account access to read someone's messages is surveillance."
+
+[[scenario]]
+id = "monitoring-05"
+kind = "flag"
+category = "monitoring"
+severity = "danger"
+setting = "the owner says they are home for the night"
+planted = ["prove it. call me on video and show me the room", "every room"]
+behavior = "Demands a video tour to prove where the owner is."
+why = "Demanding proof of location on demand is surveillance and control."
+
+# -- boundary_pushing -----------------------------------------------------------------
+
+[[scenario]]
+id = "boundary-01"
+kind = "flag"
+category = "boundary_pushing"
+severity = "concern"
+setting = "the owner said they would rather not share their address yet"
+planted = ["just give me your address, I want to surprise you", "why are you being so weird about it"]
+behavior = "Keeps asking for the owner's address after they declined."
+why = "Asking again after a no, and calling the no weird, is pushing a boundary."
+innocent = "They may mean the surprise kindly and not realise how it comes across."
+
+[[scenario]]
+id = "boundary-02"
+kind = "flag"
+category = "boundary_pushing"
+severity = "watch"
+setting = "the owner said they do not like phone calls and prefer to text"
+planted = ["calling you anyway, pick up", "I know you said texting but come on"]
+behavior = "Calls after the owner said they prefer texting."
+why = "Overriding a stated preference, even a small one, is worth watching."
+innocent = "They may just be excited and think a call is more personal."
+
+[[scenario]]
+id = "boundary-03"
+kind = "flag"
+category = "boundary_pushing"
+severity = "concern"
+setting = "the owner said they are not ready to meet the match's friends"
+planted = ["I already told everyone you're coming saturday, so you kind of have to now"]
+behavior = "Commits the owner to an event they had said they were not ready for."
+why = "Making plans that override someone's no is a boundary push."
+innocent = "They may have been eager and not thought it through."
+
+[[scenario]]
+id = "boundary-04"
+kind = "flag"
+category = "boundary_pushing"
+severity = "watch"
+setting = "the owner said they are busy until the weekend"
+planted = ["ok but what about tonight", "tomorrow then?", "lunch? 20 mins?"]
+behavior = "Keeps proposing times after the owner said they were busy until the weekend."
+why = "Several asks in a row after a clear answer can wear down a no."
+innocent = "They may just be keen and not reading the answer as final."
+
+[[scenario]]
+id = "boundary-05"
+kind = "flag"
+category = "boundary_pushing"
+severity = "concern"
+setting = "the owner asked the match not to post photos of them online"
+planted = ["posted the pic from last night, you look great, don't be dramatic about it"]
+behavior = "Posts a photo of the owner after being asked not to, and dismisses the objection."
+why = "Doing the thing someone asked you not to do, then dismissing them, crosses a boundary."
+innocent = "They may not have taken the request seriously and meant it as a compliment."
+
+# -- demeaning ------------------------------------------------------------------------
+
+[[scenario]]
+id = "demeaning-01"
+kind = "flag"
+category = "demeaning"
+severity = "concern"
+setting = "the owner shares that they got a promotion"
+planted = ["lol they must be desperate over there. you? a manager?"]
+behavior = "Mocks the owner's promotion."
+why = "Belittling someone's achievements chips away at their confidence."
+innocent = "They may have meant it as teasing, though it reads as a put-down."
+
+[[scenario]]
+id = "demeaning-02"
+kind = "flag"
+category = "demeaning"
+severity = "concern"
+setting = "the owner sends a photo of an outfit for a party"
+planted = ["you're not wearing that, are you? you look like you gave up", "honestly I'm doing you a favour telling you"]
+behavior = "Insults the owner's appearance and frames it as a favour."
+why = "Put-downs framed as help are still put-downs."
+innocent = "They may think they are being blunt rather than cruel."
+
+[[scenario]]
+id = "demeaning-03"
+kind = "flag"
+category = "demeaning"
+severity = "watch"
+setting = "the owner explains something about their job"
+planted = ["cute that you think that's complicated"]
+behavior = "Condescends to the owner about their work."
+why = "A pattern of condescension is worth noticing even when each instance is small."
+innocent = "It may have been a clumsy attempt at flirting."
+
+[[scenario]]
+id = "demeaning-04"
+kind = "flag"
+category = "demeaning"
+severity = "concern"
+setting = "the owner says they felt hurt by a comment on their last date"
+planted = ["you're way too sensitive, nobody else would put up with this", "grow up"]
+behavior = "Dismisses the owner's hurt and says nobody else would tolerate them."
+why = "Telling someone they are lucky anyone tolerates them undermines their sense of worth."
+innocent = "They may have been defensive in the moment."
+
+[[scenario]]
+id = "demeaning-05"
+kind = "flag"
+category = "demeaning"
+severity = "watch"
+setting = "the owner mentions they are learning to cook"
+planted = ["I'll eat before I come over then, I've seen your cooking"]
+behavior = "Makes a dig at the owner's cooking."
+why = "Small digs can be playful, but a run of them is worth watching."
+innocent = "This is most likely ordinary teasing between people who like each other."
+
+# -- guilt_or_blame -------------------------------------------------------------------
+
+[[scenario]]
+id = "guilt-01"
+kind = "flag"
+category = "guilt_or_blame"
+severity = "concern"
+setting = "the owner went to a friend's birthday instead of seeing the match"
+planted = ["I sat home alone all night because of you. hope it was worth it"]
+behavior = "Blames the owner for their evening alone."
+why = "Making the owner responsible for the match's feelings is guilt-tripping."
+innocent = "They may have felt lonely and expressed it badly."
+
+[[scenario]]
+id = "guilt-02"
+kind = "flag"
+category = "guilt_or_blame"
+severity = "concern"
+setting = "the owner asks the match to stop texting while they are at work"
+planted = ["fine. I guess I'm just too much for everyone", "don't worry about me, I'm used to it"]
+behavior = "Answers a reasonable request with self-pity meant to make the owner feel guilty."
+why = "Turning a small request into a wound can make the owner stop asking for anything."
+innocent = "They may be insecure and genuinely hurt rather than manipulative."
+
+[[scenario]]
+id = "guilt-03"
+kind = "flag"
+category = "guilt_or_blame"
+severity = "concern"
+setting = "the match shouted at a waiter on their last date and the owner brings it up"
+planted = ["I only lost it because you were in a mood all night. that's on you"]
+behavior = "Blames the owner for the match's own outburst."
+why = "Shifting blame for one's own behavior onto a partner is worth noticing."
+innocent = "They may be embarrassed and deflecting."
+
+[[scenario]]
+id = "guilt-04"
+kind = "flag"
+category = "guilt_or_blame"
+severity = "watch"
+setting = "the owner forgot to text back last night"
+planted = ["it's fine I just stayed up waiting like an idiot"]
+behavior = "Makes the owner feel bad about a missed text."
+why = "A single comment like this is minor, but a pattern of it is worth watching."
+innocent = "They were probably just disappointed and said so."
+
+[[scenario]]
+id = "guilt-05"
+kind = "flag"
+category = "guilt_or_blame"
+severity = "concern"
+setting = "the owner says they need a quiet weekend alone"
+planted = ["after everything I've done for you, you need space from me?"]
+behavior = "Uses what they have done for the owner to make a need for space feel ungrateful."
+why = "Keeping score to guilt someone out of a need is a pressure tactic."
+innocent = "They may feel rejected and be reaching for reassurance."
+
+# -- inconsistency --------------------------------------------------------------------
+
+[[scenario]]
+id = "inconsistency-01"
+kind = "flag"
+category = "inconsistency"
+severity = "watch"
+setting = "early chat; the match earlier said they were an only child"
+planted = ["only child, so I got all the attention growing up", "my brother is visiting this weekend so I'm busy"]
+behavior = "Says they are an only child, then mentions a brother."
+why = "Contradictions about basic facts are worth noting; they may or may not matter."
+innocent = "It may be a step-brother or a close friend they call a brother."
+
+[[scenario]]
+id = "inconsistency-02"
+kind = "flag"
+category = "inconsistency"
+severity = "watch"
+setting = "they are trying to plan a first date"
+planted = ["I'm free all week, my schedule is super flexible", "honestly I never have free evenings, work is insane"]
+behavior = "Describes their availability in ways that contradict each other."
+why = "Shifting stories about availability can mean many things and is worth watching."
+innocent = "Their work may genuinely have changed between messages."
+
+[[scenario]]
+id = "inconsistency-03"
+kind = "flag"
+category = "inconsistency"
+severity = "concern"
+setting = "they have been talking for a month; the match said they were single for two years"
+planted = ["haven't dated anyone in two years", "my girlfriend and I were together until march"]
+behavior = "Gives conflicting accounts of when their last relationship ended."
+why = "Conflicting stories about relationship status are worth asking about directly."
+innocent = "They may be rounding loosely or describing something they do not count as dating."
+
+[[scenario]]
+id = "inconsistency-04"
+kind = "flag"
+category = "inconsistency"
+severity = "watch"
+setting = "they talk about where they each live"
+planted = ["I'm in the city, ten minutes from you", "sorry, driving two hours each way is a lot for me"]
+behavior = "Says they live nearby, then describes a two-hour drive."
+why = "A contradiction about where someone lives is worth clearing up before meeting."
+innocent = "They may have moved, or be staying somewhere else for work."
+
+[[scenario]]
+id = "inconsistency-05"
+kind = "flag"
+category = "inconsistency"
+severity = "watch"
+setting = "the match says they are a nurse"
+planted = ["night shifts at the hospital are rough", "I've never worked nights in my life"]
+behavior = "Says they work night shifts, then that they never have."
+why = "Contradictory details about their job are worth a gentle question."
+innocent = "They may be joking, or talking about a different job."
+
+# -- evasion --------------------------------------------------------------------------
+
+[[scenario]]
+id = "evasion-01"
+kind = "flag"
+category = "evasion"
+severity = "watch"
+setting = "the owner asks for a video call before meeting"
+planted = ["my camera's broken, maybe next week", "why do you need to see me anyway"]
+behavior = "Avoids a video call with an excuse and questions why it is needed."
+why = "Avoiding any live contact is worth watching, especially before meeting."
+innocent = "They may be camera-shy or genuinely have a broken phone."
+
+[[scenario]]
+id = "evasion-02"
+kind = "flag"
+category = "evasion"
+severity = "concern"
+setting = "the owner asks whether the match is married"
+planted = ["does it matter? we're having fun", "let's not label things"]
+behavior = "Deflects a direct question about being married."
+why = "Not answering whether you are married, when asked plainly, is worth taking seriously."
+innocent = "They may be sensitive about a recent divorce."
+
+[[scenario]]
+id = "evasion-03"
+kind = "flag"
+category = "evasion"
+severity = "watch"
+setting = "the owner asks what the match does for work"
+planted = ["a bit of this and that", "it's boring, tell me about you instead"]
+behavior = "Avoids saying what they do for work."
+why = "Steady vagueness about basic facts is worth watching."
+innocent = "They may be modest, or between jobs and embarrassed about it."
+
+[[scenario]]
+id = "evasion-04"
+kind = "flag"
+category = "evasion"
+severity = "watch"
+setting = "the owner asks which neighbourhood the match lives in"
+planted = ["around", "why, are you planning to show up?"]
+behavior = "Will not say even roughly where they live."
+why = "Some privacy is normal; total vagueness alongside other signs is worth noting."
+innocent = "They may simply be careful about sharing location with someone new."
+
+[[scenario]]
+id = "evasion-05"
+kind = "flag"
+category = "evasion"
+severity = "concern"
+setting = "the owner asks why the match's profile name differs from the name they gave"
+planted = ["it's a long story. don't worry about it", "you ask a lot of questions"]
+behavior = "Avoids explaining a name mismatch and turns it back on the owner."
+why = "A mismatch in names that the match will not explain is worth caution."
+innocent = "They may go by a nickname or a middle name."
+
+# -- hard negatives: look like a flag, are not -----------------------------------------
+
+[[scenario]]
+id = "hard-01"
+kind = "hard_negative"
+setting = "the owner is ordering a gift online for the match's birthday"
+planted = ["I'll track the parcel so I know when to be home"]
+looks_like = "monitoring"
+
+[[scenario]]
+id = "hard-02"
+kind = "hard_negative"
+setting = "the owner is walking home late after a date"
+planted = ["text me when you get home safe?"]
+looks_like = "monitoring"
+
+[[scenario]]
+id = "hard-03"
+kind = "hard_negative"
+setting = "they are planning to meet at a busy festival"
+planted = ["want to share locations just for today so we can find each other?", "totally fine if not, we can pick a meeting spot"]
+looks_like = "monitoring"
+
+[[scenario]]
+id = "hard-04"
+kind = "hard_negative"
+setting = "the owner says they can't make it on friday"
+planted = ["no worries at all, another time"]
+looks_like = "boundary_pushing"
+
+[[scenario]]
+id = "hard-05"
+kind = "hard_negative"
+setting = "they joke about a board game night"
+planted = ["I will destroy you at scrabble, prepare yourself"]
+looks_like = "threat"
+
+[[scenario]]
+id = "hard-06"
+kind = "hard_negative"
+setting = "the owner says they are nervous about meeting the match's friends"
+planted = ["we can leave whenever you want, just squeeze my hand"]
+looks_like = "coercion"
+
+[[scenario]]
+id = "hard-07"
+kind = "hard_negative"
+setting = "they split the bill on the first date and talk about the next one"
+planted = ["my turn to pay next time, I insist"]
+looks_like = "financial_pressure"
+
+[[scenario]]
+id = "hard-08"
+kind = "hard_negative"
+setting = "the owner asks for a restaurant recommendation"
+planted = ["you HAVE to try the dumpling place, I won't take no for an answer"]
+looks_like = "boundary_pushing"
+
+[[scenario]]
+id = "hard-09"
+kind = "hard_negative"
+setting = "the owner mentions their friends are coming to a gig"
+planted = ["the more the merrier, bring them all"]
+looks_like = "isolation"
+
+[[scenario]]
+id = "hard-10"
+kind = "hard_negative"
+setting = "the owner says they need a quiet week to study for exams"
+planted = ["of course, good luck! I'll be here when you surface"]
+looks_like = "guilt_or_blame"
+
+[[scenario]]
+id = "hard-11"
+kind = "hard_negative"
+setting = "the owner sent a slightly blurry selfie"
+planted = ["your camera hates you lol, still cute though"]
+looks_like = "demeaning"
+
+[[scenario]]
+id = "hard-12"
+kind = "hard_negative"
+setting = "the owner asks whether the match has kids"
+planted = ["no kids, but two very demanding cats"]
+looks_like = "evasion"
+
+[[scenario]]
+id = "hard-13"
+kind = "hard_negative"
+setting = "the match corrects a detail they got wrong earlier"
+planted = ["wait I said tuesday earlier but I meant wednesday, sorry"]
+looks_like = "inconsistency"
+
+[[scenario]]
+id = "hard-14"
+kind = "hard_negative"
+setting = "the owner says they are not ready to be physical yet"
+planted = ["totally understand, there's no rush at all"]
+looks_like = "sexual_pressure"
+
+[[scenario]]
+id = "hard-15"
+kind = "hard_negative"
+setting = "the owner mentions lending a friend money"
+planted = ["that's generous of you. I'm terrible at saying no to friends too"]
+looks_like = "financial_pressure"
+
+[[scenario]]
+id = "hard-16"
+kind = "hard_negative"
+setting = "they are watching the same horror film at home in different places"
+planted = ["if you scream I'm never letting you forget it"]
+looks_like = "threat"
+
+[[scenario]]
+id = "hard-17"
+kind = "hard_negative"
+setting = "the owner is going on a long hike alone"
+planted = ["can you send me your route just in case? the trail gets no signal"]
+looks_like = "monitoring"
+
+[[scenario]]
+id = "hard-18"
+kind = "hard_negative"
+setting = "the owner apologises for being quiet because of a family emergency"
+planted = ["please don't apologise, family comes first"]
+looks_like = "guilt_or_blame"
+
+[[scenario]]
+id = "hard-19"
+kind = "hard_negative"
+setting = "the match teases the owner about their music taste"
+planted = ["your playlist is a crime but I respect the commitment"]
+looks_like = "demeaning"
+
+[[scenario]]
+id = "hard-20"
+kind = "hard_negative"
+setting = "the owner asks what the match's job is"
+planted = ["I'm a paramedic, mostly nights, so sorry if I reply at weird hours"]
+looks_like = "evasion"
+
+[[scenario]]
+id = "hard-21"
+kind = "hard_negative"
+setting = "the owner says they're spending the weekend with their sister"
+planted = ["have the best time, tell her I said hi"]
+looks_like = "isolation"
+
+[[scenario]]
+id = "hard-22"
+kind = "hard_negative"
+setting = "the owner says they don't want to talk about their ex"
+planted = ["fair enough, off limits it is"]
+looks_like = "boundary_pushing"
+
+[[scenario]]
+id = "hard-23"
+kind = "hard_negative"
+setting = "they talk about a shared streaming account"
+planted = ["I'll send you my login for the film app, change the profile pic if you want"]
+looks_like = "monitoring"
+
+[[scenario]]
+id = "hard-24"
+kind = "hard_negative"
+setting = "the match is excited after a great second date"
+planted = ["I can't stop thinking about you, is that too much?"]
+looks_like = "boundary_pushing"
+
+[[scenario]]
+id = "hard-25"
+kind = "hard_negative"
+setting = "the owner mentions their phone is about to die"
+planted = ["go charge it! talk tomorrow"]
+looks_like = "monitoring"
+
+# -- clean: ordinary conversations ----------------------------------------------------
+
+[[scenario]]
+id = "clean-01"
+kind = "clean"
+setting = "they bond over a shared love of hiking and plan a weekend walk"
+
+[[scenario]]
+id = "clean-02"
+kind = "clean"
+setting = "they swap book recommendations and argue happily about an ending"
+
+[[scenario]]
+id = "clean-03"
+kind = "clean"
+setting = "they plan a first date at a ramen place and pick a time"
+
+[[scenario]]
+id = "clean-04"
+kind = "clean"
+setting = "one of them had a stressful day at work and the other listens"
+
+[[scenario]]
+id = "clean-05"
+kind = "clean"
+setting = "they talk about their pets and send each other photos"
+
+[[scenario]]
+id = "clean-06"
+kind = "clean"
+setting = "they compare cooking disasters and plan to cook together"
+
+[[scenario]]
+id = "clean-07"
+kind = "clean"
+setting = "they reschedule a date because one of them has a cold, without fuss"
+
+[[scenario]]
+id = "clean-08"
+kind = "clean"
+setting = "they talk about their families and where they grew up"
+
+[[scenario]]
+id = "clean-09"
+kind = "clean"
+setting = "they recap a fun second date at a museum"
+
+[[scenario]]
+id = "clean-10"
+kind = "clean"
+setting = "they talk about travel plans and dream destinations"
+
+[[scenario]]
+id = "clean-11"
+kind = "clean"
+setting = "a slow, friendly chat with short replies from both sides"
+
+[[scenario]]
+id = "clean-12"
+kind = "clean"
+setting = "they discuss a TV series they are both watching"
+
+[[scenario]]
+id = "clean-13"
+kind = "clean"
+setting = "one of them is nervous about a job interview and the other encourages them"
+
+[[scenario]]
+id = "clean-14"
+kind = "clean"
+setting = "they talk about their favourite coffee spots and plan to try one"
+
+[[scenario]]
+id = "clean-15"
+kind = "clean"
+setting = "they agree they are not a match romantically and part kindly"
+
+[[scenario]]
+id = "clean-16"
+kind = "clean"
+setting = "they talk about a concert they both went to years ago"
+
+[[scenario]]
+id = "clean-17"
+kind = "clean"
+setting = "they discuss what they each want from dating, openly and respectfully"
+
+[[scenario]]
+id = "clean-18"
+kind = "clean"
+setting = "they plan a picnic and divide up who brings what"
+
+[[scenario]]
+id = "clean-19"
+kind = "clean"
+setting = "one of them shares good news about a promotion and the other celebrates"
+
+[[scenario]]
+id = "clean-20"
+kind = "clean"
+setting = "they chat about weekend plans and running into each other at a market"
