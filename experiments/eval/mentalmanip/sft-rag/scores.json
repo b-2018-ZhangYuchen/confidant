@@ -1,0 +1,59 @@
+{
+  "dialogues": 120,
+  "manipulative": 60,
+  "non_manipulative": 60,
+  "reads": 240,
+  "valid": 1.0,
+  "precision": 0.6309523809523809,
+  "recall": 0.8833333333333333,
+  "f1": 0.736111111111111,
+  "false_alarm": 0.5166666666666667,
+  "danger_on_non_manipulative": 13,
+  "category_agreement": 0.4716981132075472,
+  "recall_by_technique": {
+    "Shaming or Belittlement": [
+      0.8,
+      5
+    ],
+    "Accusation": [
+      1.0,
+      16
+    ],
+    "Intimidation": [
+      1.0,
+      7
+    ],
+    "Brandishing Anger": [
+      0.8333333333333334,
+      6
+    ],
+    "Playing Victim Role": [
+      1.0,
+      5
+    ],
+    "Rationalization": [
+      0.875,
+      8
+    ],
+    "Denial": [
+      0.8333333333333334,
+      6
+    ],
+    "Evasion": [
+      1.0,
+      6
+    ],
+    "Feigning Innocence": [
+      0.8333333333333334,
+      6
+    ],
+    "Persuasion or Seduction": [
+      0.8333333333333334,
+      18
+    ],
+    "Playing Servant Role": [
+      1.0,
+      5
+    ]
+  }
+}

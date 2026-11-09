@@ -45,3 +45,6 @@ htmlcov/
 .vscode/
 *.swp
 lab-cache/
+
+# MentalManip is CC BY-NC; its runs keep scores and configs, not reads that quote it.
+experiments/eval/mentalmanip/*/reads.jsonl

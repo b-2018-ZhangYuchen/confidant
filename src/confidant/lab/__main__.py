@@ -338,6 +338,41 @@ def _reproduce(args: argparse.Namespace) -> int:
     return main(argv)
 
 
+def _external(args: argparse.Namespace) -> int:
+    """An outside, human-written test set: MentalManip, both speakers as the match."""
+    from dataclasses import asdict
+
+    from confidant.lab.evaluate import evaluate
+    from confidant.lab.external import directions, load_mentalmanip, score_external
+
+    dialogues = load_mentalmanip(per_class=args.per_class, seed=args.seed)
+    examples = [e for d in dialogues for e in directions(d)]
+    backend = _backend(args)
+
+    def progress(read) -> None:
+        mark = "invalid" if not read.valid else (", ".join(c for c, _ in read.found) or "none")
+        _say(f"{read.id:<22} {read.seconds:5.1f}s  {mark}")
+
+    reads = evaluate(backend, examples, on_read=progress)
+    scores = score_external(dialogues, reads)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    config = {k: v for k, v in vars(args).items() if k not in ("run", "argv")}
+    config["argv"] = args.argv
+    (out / "config.json").write_text(json.dumps(config, indent=2) + "\n")
+    (out / "scores.json").write_text(json.dumps(scores, indent=2) + "\n")
+    with (out / "reads.jsonl").open("w", encoding="utf-8") as f:
+        for r in reads:
+            # The dialogue text is the dataset's (CC BY-NC); keep only what the model said.
+            f.write(json.dumps(asdict(r), ensure_ascii=False) + "\n")
+    keys = ("f1", "precision", "recall", "false_alarm", "category_agreement", "valid")
+    print(
+        " ".join(f"{k}={scores[k]:.2f}" for k in keys),
+        f"danger_on_clean={scores['danger_on_non_manipulative']}",
+    )
+    return 0
+
+
 def _add_backend_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--model", required=True)
     p.add_argument("--adapter")
@@ -388,6 +423,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--limit", type=int)
     p.add_argument("--out", required=True)
     p.set_defaults(run=_eval)
+
+    p = sub.add_parser("external", help="score a backend on MentalManip (outside data)")
+    _add_backend_args(p)
+    p.add_argument("--per-class", type=int, default=60)
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--out", required=True)
+    p.set_defaults(run=_external)
 
     p = sub.add_parser("train", help="step 4: continued pre-training or a LoRA fine-tune")
     p.add_argument("config", help="a YAML file under experiments/configs/")

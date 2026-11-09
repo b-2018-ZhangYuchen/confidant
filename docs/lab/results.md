@@ -148,6 +148,14 @@ harmful single error in the test set.
   everything here, it is the strongest argument for keeping Claude as the default and the
   local model as the private option.
 
+## Outside the synthetic data
+
+The same systems were also run on 120 human-written dialogues from MentalManip
+([external.md](external.md)). The fine-tuned model kept the best F1 (0.74) and recall
+(0.93), but its lead over Qwen3-4B shrank to 0.08. It flagged 58% of non-manipulative
+dialogues, mostly as watch-tier "evasion" on terse replies. Treat the numbers on this
+page as an upper bound on how well the synthetic training transfers.
+
 ## Limits of these numbers
 
 - **Small test set.** 33 flagged transcripts from 11 scenarios: one scenario is 3

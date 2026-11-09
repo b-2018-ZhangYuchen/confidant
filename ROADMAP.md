@@ -186,6 +186,11 @@ Ideas that are real but not scheduled:
   floor
 - Hard negatives that reuse each danger scenario's own vocabulary innocently ("I promise
   to share a secret with you" was flagged as a threat)
+- From the MentalManip test: hard negatives built from terse, ordinary replies (the main
+  source of false alarms on human dialogue), and transcripts where someone *reports* a
+  third party's threat rather than making one
+- More outside test sets from the survey of real data: LoveFraud02 or ConScamBench for
+  scams, and the UCL Tinder corpus as real negatives (needs the authors)
 - A longer training sweep (300+ iterations per setting) to compare LoRA rank and lower
   learning rates on F1, and constrained JSON decoding for the local model
 - Voice-note transcription for the conversations that are not text

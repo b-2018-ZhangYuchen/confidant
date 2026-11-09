@@ -48,6 +48,11 @@ datasheet: [data.md](data.md).
 | Seconds per read (M3 Pro) / peak memory | 3.9 s / 2.7 GB | 4.5 s / 2.7 GB |
 
 The base model with the same prompt scored F1 0.00 and flagged none of the danger cases.
+
+On 120 human-written dialogues from MentalManip, outside the task
+([external.md](external.md)), the adapter scored F1 0.74 and recall 0.93. But it raised a
+flag on 58% of the dialogues annotators called non-manipulative (23% at concern or
+above). Expect many more watch-tier flags on real chats than the synthetic test shows.
 Details: [results.md](results.md).
 
 ## Known failure modes

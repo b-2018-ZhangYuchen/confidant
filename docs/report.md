@@ -140,7 +140,35 @@ The errors that matter:
 The fixes they point to are a danger-category second pass, hard negatives that reuse each
 danger scenario's own vocabulary, and keeping Claude as the default for nuance.
 
-## 9. Reproducibility (step 8)
+## 9. An outside test: MentalManip
+
+All the data above came from one generator. To check what that hides, the same systems
+were run on 120 dialogues from [MentalManip](https://github.com/audreycs/MentalManip)
+(ACL 2024, CC BY-NC 4.0). These are human-written movie dialogues labelled as
+manipulative or not by three annotators who all agreed. Half are manipulative, drawn
+across all 11 techniques. Each dialogue is checked with each speaker as the match.
+
+| System | F1 | Recall | False alarms (any / concern+) | Category agreement |
+|---|---:|---:|---:|---:|
+| Qwen2.5-3B as released | 0.00 | 0.00 | 0 / 0 of 60 | — |
+| + few-shot | 0.67 | 0.65 | 18 / 16 | 0.51 |
+| Qwen3-4B as released | 0.66 | 0.70 | 25 / 20 | 0.50 |
+| Fine-tune + repair | **0.74** | **0.93** | 35 / 14 | 0.39 |
+| Fine-tune + repair + RAG | **0.74** | 0.88 | 31 / 13 | 0.47 |
+
+- **The fine-tuned model is still the best detector, but its lead over Qwen3-4B shrinks**
+  from 0.36 F1 to 0.08. Part of the synthetic advantage was learning the generator.
+- **It over-flags human dialogue.** It flags 58% of the non-manipulative dialogues,
+  against 17% of clean synthetic chats. Most of these are watch-tier "evasion" on terse
+  replies, a habit learned from the synthetic evasion scenarios.
+- **Every system raised danger-tier flags on non-manipulative dialogues.** For the
+  fine-tuned model, about a quarter of these were real threats in thriller plots, and the
+  rest were errors.
+- **RAG improved category agreement**, as on the synthetic test.
+
+→ [lab/external.md](lab/external.md)
+
+## 10. Reproducibility (step 8)
 
 - **Code:** everything is in `confidant.lab` (`python -m confidant.lab --help`), behind
   the `lab` extra, tested offline: the core suite runs without it.
@@ -152,12 +180,16 @@ danger scenario's own vocabulary, and keeping Claude as the default for nuance.
   adapters, and the downloaded corpus are rebuilt from scripts.
 - **Model card:** [lab/model-card.md](lab/model-card.md).
 
-## 10. Conclusions and limits
+## 11. Conclusions and limits
 
 A 6.7M-parameter adapter, trained in 42 minutes on a laptop from 180 synthetic examples,
 turns a 3B model that saw nothing into one that catches 70% of planted flags in unseen
 scenarios. It also passes 92% of the hand-written gold checks. Its errors are the ones
 that matter most for this tool: a quarter of danger cases are not filed as danger.
+
+On human-written dialogue from outside the task, the model is still the best detector of
+the systems tried, but by a smaller margin, and it is over-eager: it flags most ordinary
+movie dialogue at watch tier.
 
 So the local model is a credible **private option** beside Claude, not a replacement:
 the user who will not send a chat anywhere gets a real check, with the same grounding
@@ -165,7 +197,9 @@ and safety floors as before.
 
 The limits are real:
 - the test set is small (one scenario is 9 points of recall)
-- all training and test data comes from one generator in the student's own model family
+- all training and synthetic test data comes from one generator in the student's own
+  model family. The MentalManip test shows this overstated the advantage: 0.78 vs 0.42
+  F1 against Qwen3-4B on synthetic data, 0.74 vs 0.66 on human-written data
 - the negatives are not yet audited by a person
 - each configuration was run once
 - the Claude comparison is still waiting on an API key
