@@ -1,4 +1,6 @@
 # Continued pre-training: QLoRA, causal-LM loss on the dialogue + background corpus.
+# Planned for 600 iterations; stopped at 200 (~400k tokens) because it shared the GPU
+# with data generation and ran at ~130 tokens/s. Validation loss was lowest at 100.
 kind: cpt
 name: cpt
 model: mlx-community/Qwen2.5-3B-Instruct-4bit
@@ -6,7 +8,7 @@ data: lab-cache/corpus
 fine_tune_type: lora
 num_layers: 16
 batch_size: 4
-iters: 600
+iters: 200
 learning_rate: 1.0e-4
 max_seq_length: 512
 grad_checkpoint: true

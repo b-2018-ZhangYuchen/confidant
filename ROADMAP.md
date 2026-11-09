@@ -70,71 +70,82 @@ Rules for these weeks:
 - Machine budget: M3 Pro with 18 GB, so models up to ~4B at full LoRA, and ~8B only at
   4-bit.
 
+All of steps 1–8 were run in one go on Nov 8, ahead of these dates. The results are in
+[`docs/report.md`](docs/report.md) and [`docs/lab/`](docs/lab/). Where the work differed
+from these lines, the record is:
+- 300 examples rather than ~400, split 60/20/20 by scenario so every category has
+  whole scenarios in val and test.
+- Continued pre-training was stopped at 200 of 600 iterations.
+- The sweep ran 150 iterations per setting, which turned out to be too short to compare
+  ranks.
+- Card chunking and constrained JSON decoding were not tried.
+- The CLI and web backend switch (Nov 21) is still to do.
+
 ### Week 5 — Choosing a model, building the data (steps 1–2)
 
 - [x] **Thu Nov 05** — A `Backend` protocol for the red-flag check (Claude, local
   `mlx-lm`, fake), with grounding, minimum severities, and the safety notice applied the
   same way whatever produced the report
-- [ ] **Fri Nov 06** — Model selection: `lab models` loads each candidate (small current
+- [x] **Fri Nov 06** — Model selection: `lab models` loads each candidate (small current
   Qwen, Llama, and Mistral instruct models that fit in 18 GB). It measures peak memory,
   tokens/s, context length, and how often the output is valid JSON for the flag schema.
   The table and the reasoning for the choice go in `docs/lab/model-selection.md`
-- [ ] **Sat Nov 07** — Labelled-data spec: a scenario grid in `lab/scenarios.toml`
+- [x] **Sat Nov 07** — Labelled-data spec: a scenario grid in `lab/scenarios.toml`
   (category × severity × length × tone, plus hard negatives such as "I'll track the
   parcel"), the example schema, and a validator. The validator checks that planted lines
   appear verbatim, that names are fictional, and that nothing overlaps the gold set
-- [ ] **Sun Nov 08** — Generator: a local instruct model writes each scenario into a
+- [x] **Sun Nov 08** — Generator: a local instruct model writes each scenario into a
   transcript around its planted lines. Labels come from the scenario, not from the
   generator. Rejected and near-duplicate outputs are dropped, with a count of each
-- [ ] **Mon Nov 09** — Generate ~400 examples. Split train/val/test 70/15/15, stratified by
+- [x] **Mon Nov 09** — Generate ~400 examples. Split train/val/test 70/15/15, stratified by
   category and severity and grouped by scenario so paraphrases never straddle a split.
   Run the contamination check against the gold set. Write the datasheet in
   `docs/lab/data.md`
-- [ ] **Tue Nov 10** — Continued-pre-training corpus: download and clean scripts for
+- [x] **Tue Nov 10** — Continued-pre-training corpus: download and clean scripts for
   DailyDialog, EmpatheticDialogues, PersonaChat, and the Wikipedia articles on
   intimate-partner abuse and coercive control. Normalize them into Confidant's transcript
   format, deduplicate, redact, tokenize, and report token counts and licenses. Only the
   scripts and the stats are committed
-- [ ] **Wed Nov 11** — Baseline (step 3): `lab eval` runs any backend over a split.
+- [x] **Wed Nov 11** — Baseline (step 3): `lab eval` runs any backend over a split.
   Metrics: flag/no-flag precision, recall, F1; category micro-F1; severity accuracy and
   the rate of under-rated danger; quote grounding; JSON validity; diagnostic labels;
   latency and memory. Run the unmodified model on val, test, and gold
 
 ### Week 6 — Adapting it (steps 4–5)
 
-- [ ] **Thu Nov 12** — Continued pre-training: LoRA with causal-LM loss on the dialogue
+- [x] **Thu Nov 12** — Continued pre-training: LoRA with causal-LM loss on the dialogue
   corpus, config in `experiments/configs/`, with held-out perplexity on dialogue and on the
   val transcripts before and after
-- [ ] **Fri Nov 13** — Supervised LoRA fine-tune on train (transcript → flag report JSON),
+- [x] **Fri Nov 13** — Supervised LoRA fine-tune on train (transcript → flag report JSON),
   with val for early stopping, from both the base model and the continued-pre-training
   checkpoint
-- [ ] **Sat Nov 14** — Training sweep on val: learning rate, LoRA rank, epochs, plus
+- [x] **Sat Nov 14** — Training sweep on val: learning rate, LoRA rank, epochs, plus
   QLoRA vs LoRA for memory and speed
-- [ ] **Sun Nov 15** — RAG: hand-written pattern cards in `lab/cards/`, one per category
+- [x] **Sun Nov 15** — RAG: hand-written pattern cards in `lab/cards/`, one per category
   (what it looks like, innocent readings, cultural notes), bound by
   `docs/principles.md`. A local embedding index retrieves cards into the prompt
-- [ ] **Mon Nov 16** — Retrieval experiments: top-k, card chunking, and two embedding
+- [x] **Mon Nov 16** — Retrieval experiments: top-k, card chunking, and two embedding
   models, with retrieval recall scored against the labelled categories
-- [ ] **Tue Nov 17** — Inference experiments on val: temperature, top-p, and context
+- [x] **Tue Nov 17** — Inference experiments on val: temperature, top-p, and context
   length, including windowing long transcripts (window size, stride, merging flags across
   windows)
-- [ ] **Wed Nov 18** — Prompt experiments for the local model: zero-shot vs few-shot,
+- [x] **Wed Nov 18** — Prompt experiments for the local model: zero-shot vs few-shot,
   schema in the prompt vs constrained JSON decoding, scored with `lab eval`
 
 ### Week 7 — Showing what worked (steps 6–8)
 
-- [ ] **Thu Nov 19** — Comparison on test and gold: base, +pre-training, +fine-tune,
+- [x] **Thu Nov 19** — Comparison on test and gold: base, +pre-training, +fine-tune,
   both, and +RAG, on every metric plus latency, memory, and cost per read. The table goes
   in `docs/lab/results.md`
-- [ ] **Fri Nov 20** — Ablation: take out each component in turn (pre-training,
+- [x] **Fri Nov 20** — Ablation: take out each component in turn (pre-training,
   fine-tune, RAG, few-shot, grounding check). Error analysis of 20 failures by category,
   and every under-rated danger case listed by name
 - [ ] **Sat Nov 21** — `confidant flags --backend local` and a backend switch in the web
   UI, with the safety notice and grounding unchanged and tests on the fake backend
-- [ ] **Sun Nov 22** — Reproducibility: `lab reproduce <experiment>` reruns any result
+- [x] **Sun Nov 22** — Reproducibility: `lab reproduce <experiment>` reruns any result
   from its config with fixed seeds and pinned versions. A model card for the adapter and a
   Lab section in the README
-- [ ] **Mon Nov 23** — Final report draft in `docs/report.md` from the results, the
+- [x] **Mon Nov 23** — Final report draft in `docs/report.md` from the results, the
   ablation, and the error analysis, plus a demo script
 
 ## Week 8 — Showing the work
@@ -170,6 +181,13 @@ for a machine, or a person, that can.
 
 Ideas that are real but not scheduled:
 
+- From the lab's error analysis: a second pass that re-checks every flag against the
+  danger categories, since a danger item filed under a non-danger category escapes the
+  floor
+- Hard negatives that reuse each danger scenario's own vocabulary innocently ("I promise
+  to share a secret with you" was flagged as a threat)
+- A longer training sweep (300+ iterations per setting) to compare LoRA rank and lower
+  learning rates on F1, and constrained JSON decoding for the local model
 - Voice-note transcription for the conversations that are not text
 - Multi-language transcripts, with the cultural-context caveats that requires
 - Calibration study: how often is a low-confidence read actually wrong?

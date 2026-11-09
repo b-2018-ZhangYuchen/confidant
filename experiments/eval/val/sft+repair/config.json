@@ -1,0 +1,28 @@
+{
+  "command": "eval",
+  "model": "mlx-community/Qwen2.5-3B-Instruct-4bit",
+  "adapter": "lab-cache/adapters/sft",
+  "max_tokens": 1024,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "prompt": "compact",
+  "shots": 2,
+  "cards": 2,
+  "retriever": "bm25max",
+  "max_messages": null,
+  "split": [
+    "val"
+  ],
+  "gold": false,
+  "limit": null,
+  "out": "experiments/eval/val/sft",
+  "argv": [
+    "rescore",
+    "experiments/eval/val/sft",
+    "--repair-quotes",
+    "--out",
+    "experiments/eval/val/sft+repair"
+  ],
+  "rescored_from": "experiments/eval/val/sft",
+  "repair_quotes": true
+}

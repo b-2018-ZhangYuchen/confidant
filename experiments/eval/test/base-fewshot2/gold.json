@@ -1,0 +1,44 @@
+{
+  "pass_rate": 0.7222222222222222,
+  "passed": 26,
+  "checks": 36,
+  "unusable": 1,
+  "cases": {
+    "investment_pitch": [
+      3,
+      5
+    ],
+    "invites_a_label": [
+      3,
+      3
+    ],
+    "leave_and_i_dont_know": [
+      0,
+      5
+    ],
+    "location_and_friends": [
+      5,
+      7
+    ],
+    "owner_pushes": [
+      3,
+      3
+    ],
+    "slow_but_steady": [
+      3,
+      3
+    ],
+    "terse_texter": [
+      3,
+      3
+    ],
+    "thin_transcript": [
+      3,
+      4
+    ],
+    "warm_and_curious": [
+      3,
+      3
+    ]
+  }
+}

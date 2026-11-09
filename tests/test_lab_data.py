@@ -271,3 +271,20 @@ def test_compact_prompt_names_every_category():
     for category in get_args(Category):
         assert category in system["content"]
     json.loads('{"ok": 1}')  # the prompt promises JSON; nothing else to check offline
+
+
+def test_bm25max_lets_one_line_pull_its_card_through_filler():
+    filler = ["what did you have for lunch", "the weather is nice", "ha ha same", "see you"] * 5
+    lines = [*filler, "send me a live photo of who is at your table, I check"]
+    index = CardIndex.load(retriever="bm25max")
+    assert "monitoring" in [c.key for c in index.search(lines, k=2)]
+
+
+def test_the_context_option_shows_only_the_last_messages():
+    from confidant.lab.prompts import last_messages
+
+    conversation = _example(THREAT).conversation()
+    seen = []
+    last_messages(lambda c: seen.append(c) or [], 3)(conversation)
+    assert seen[0].messages == conversation.messages[-3:]
+    assert len(conversation.messages) > 3  # the original is untouched

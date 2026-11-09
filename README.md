@@ -47,6 +47,7 @@ Early and honest about it. Working today:
 | ✅ | `confidant serve` — the same commands as a JSON API over HTTP, on this machine only |
 | ✅ | A web UI at `confidant serve`'s address — upload a transcript or an export, read it locally, see what would be sent, and get the personality read or red-flag check as a report, safety notice first |
 | ✅ | The people you have saved and who to write to, in the same page — save a conversation, open a profile, bring its reads up to date, and read the nudge digest, safety notices first |
+| ✅ | A model of its own, in the lab — Qwen2.5-3B fine-tuned on synthetic chats runs the red-flag check locally: F1 0.00 → 0.78 on unseen scenarios, 92% of the hand-written eval checks |
 | ✅ | `pipx install confidant-agent` — one command to install, settings in `~/.confidant/.env`, and a release workflow that builds, checks, and publishes each tagged version |
 
 The plan for getting from here to there is in [`ROADMAP.md`](ROADMAP.md).
@@ -912,6 +913,46 @@ The key, which stays on your machine:
 This is pattern matching, not understanding. It catches the shapes that identify people
 in a chat; it does not catch "the bakery on the corner by my work". Read the preview
 before sending anything you would mind being seen.
+
+## Lab: a model of its own
+
+`confidant.lab` is the course project's experimental side. It adapts a small open model to
+run the red-flag check on your own machine. The full report is
+[`docs/report.md`](docs/report.md); each step has a page under [`docs/lab/`](docs/lab/).
+
+| Step | What was done | Page |
+|---|---|---|
+| 1. Model selection | 7 local models through the real red-flag path; Qwen2.5-3B chosen | [model-selection.md](docs/lab/model-selection.md) |
+| 2. Data | 300 synthetic labelled chats from a 100-scenario grid; a 6,107-document pre-training corpus | [data.md](docs/lab/data.md) |
+| 3–5. Baseline, customization, parameters | prompting, RAG, continued pre-training, QLoRA fine-tuning, sweeps | [experiments.md](docs/lab/experiments.md) |
+| 6–7. Comparison, ablation | test split and gold set; one component removed at a time | [results.md](docs/lab/results.md) |
+| 8. Reproducibility | configs, saved answers, `reproduce`, model card | [model-card.md](docs/lab/model-card.md) |
+
+On transcripts from scenarios it never saw, the fine-tuned 3B model reaches F1 0.78. The
+same model out of the box scores 0.00, and Qwen3-4B out of the box scores 0.42. It
+passes 92% of the hand-written eval checks. It still files 4 of 15 danger cases below
+danger, which is why Claude stays the default.
+
+The lab needs Apple silicon and its own extra:
+
+```bash
+pip install -e ".[lab]"
+python -m confidant.lab --help
+```
+
+Every experiment saves its command, config, raw model answers, and scores under
+`experiments/`, and can be rerun from them:
+
+```bash
+python -m confidant.lab reproduce experiments/eval/test/sft
+```
+
+The rerun is written beside the original (`experiments/eval/test/sft-rerun`). Done for
+the headline result, it gave the same answer to all 60 test transcripts, word for word,
+and the same scores. Decoding is greedy, so nothing depends on chance.
+
+Nothing in the core imports the lab, and its tests run offline against fakes, so
+`pytest` and CI never need `mlx`.
 
 ## Your data
 

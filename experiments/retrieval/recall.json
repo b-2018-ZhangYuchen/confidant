@@ -1,0 +1,74 @@
+[
+  {
+    "retriever": "bm25",
+    "k": 1,
+    "recall": 0.30303030303030304,
+    "n": 33
+  },
+  {
+    "retriever": "bm25",
+    "k": 2,
+    "recall": 0.36363636363636365,
+    "n": 33
+  },
+  {
+    "retriever": "bm25",
+    "k": 3,
+    "recall": 0.45454545454545453,
+    "n": 33
+  },
+  {
+    "retriever": "bm25max",
+    "k": 1,
+    "recall": 0.45454545454545453,
+    "n": 33
+  },
+  {
+    "retriever": "bm25max",
+    "k": 2,
+    "recall": 0.5151515151515151,
+    "n": 33
+  },
+  {
+    "retriever": "bm25max",
+    "k": 3,
+    "recall": 0.5757575757575758,
+    "n": 33
+  },
+  {
+    "retriever": "embed",
+    "k": 1,
+    "recall": 0.15151515151515152,
+    "n": 33
+  },
+  {
+    "retriever": "embed",
+    "k": 2,
+    "recall": 0.3333333333333333,
+    "n": 33
+  },
+  {
+    "retriever": "embed",
+    "k": 3,
+    "recall": 0.45454545454545453,
+    "n": 33
+  },
+  {
+    "retriever": "embed:BAAI/bge-small-en-v1.5",
+    "k": 1,
+    "recall": 0.18181818181818182,
+    "n": 33
+  },
+  {
+    "retriever": "embed:BAAI/bge-small-en-v1.5",
+    "k": 2,
+    "recall": 0.3939393939393939,
+    "n": 33
+  },
+  {
+    "retriever": "embed:BAAI/bge-small-en-v1.5",
+    "k": 3,
+    "recall": 0.48484848484848486,
+    "n": 33
+  }
+]

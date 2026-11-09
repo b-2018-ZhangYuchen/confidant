@@ -15,6 +15,7 @@ own system prompt, so a difference in score is a difference in what was added:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 from collections.abc import Callable
 from functools import cache
@@ -94,6 +95,19 @@ def rag(cards: int, retriever: str) -> Builder:
         return compact_messages(
             conversation, "Background on patterns that may be relevant:\n\n" + notes
         )
+
+    return build
+
+
+def last_messages(builder: Builder, count: int) -> Builder:
+    """``builder``, shown only the last ``count`` messages: the context-length experiment.
+
+    Grounding still runs against the whole transcript, so a quote from a cut message is
+    simply never produced, not wrongly accepted.
+    """
+
+    def build(conversation: Conversation) -> Messages:
+        return builder(dataclasses.replace(conversation, messages=conversation.messages[-count:]))
 
     return build
 

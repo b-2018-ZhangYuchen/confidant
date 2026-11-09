@@ -1,0 +1,19 @@
+{
+  "n": 60,
+  "valid": 0.9666666666666667,
+  "precision": 1.0,
+  "recall": 0.30303030303030304,
+  "f1": 0.4651162790697675,
+  "false_alarm_hard": 0.0,
+  "false_alarm_clean": 0.0,
+  "category_f1": 0.372093023255814,
+  "severity_accuracy": 0.6,
+  "danger_missed": 13,
+  "danger_total": 18,
+  "grounded": 0.6666666666666667,
+  "labels": 0,
+  "seconds_per_read": 3.7853477632432866,
+  "tokens_per_second": 49.99132113072619,
+  "peak_memory_gb": 3.025485932,
+  "gold_pass": null
+}

@@ -9,7 +9,9 @@ add context about a pattern, never take away the reminder that most chats are fi
 
 Two retrievers are compared:
 
-- ``bm25`` — word overlap, no model at all.
+- ``bm25`` — word overlap between all of the match's lines and each card, no model.
+- ``bm25max`` — the same, but each line is scored on its own and a card keeps its best
+  line, as the embedding retriever does.
 - ``embed`` — sentence embeddings (``mlx-embeddings``; MiniLM by default). Each card is
   embedded once; each match message is embedded, and a card scores by its best match
   with any one message, so a single worrying line in a long chat can still pull its card.
@@ -97,14 +99,16 @@ class CardIndex:
     ) -> None:
         self.cards = cards
         self.retriever = retriever
-        if retriever == "bm25":
+        if retriever in ("bm25", "bm25max"):
             self._bm25 = _BM25([c.text for c in cards])
         elif retriever == "embed" or retriever.startswith("embed:"):
             name = retriever.split(":", 1)[1] if ":" in retriever else embedder
             self._embed = _Embedder(name)
             self._card_vectors = self._embed([c.text for c in cards])
         else:
-            raise ValueError(f"unknown retriever {retriever!r}: use bm25, embed, or embed:<model>")
+            raise ValueError(
+                f"unknown retriever {retriever!r}: use bm25, bm25max, embed, or embed:<model>"
+            )
 
     @classmethod
     def load(cls, directory: Path = CARDS_DIR, retriever: str = "bm25") -> CardIndex:
@@ -114,6 +118,11 @@ class CardIndex:
         """The ``k`` cards most relevant to the match's messages."""
         if self.retriever == "bm25":
             scores = self._bm25.scores(" ".join(match_lines))
+        elif self.retriever == "bm25max":
+            per_line = [self._bm25.scores(line) for line in match_lines] or [
+                [0.0] * len(self.cards)
+            ]
+            scores = [max(col) for col in zip(*per_line, strict=True)]
         else:
             vectors = self._embed(list(match_lines) or [""])
             sims = vectors @ self._card_vectors.T  # messages x cards

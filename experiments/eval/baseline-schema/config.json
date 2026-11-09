@@ -1,0 +1,33 @@
+{
+  "command": "eval",
+  "model": "mlx-community/Qwen2.5-3B-Instruct-4bit",
+  "adapter": null,
+  "max_tokens": 1024,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "prompt": "schema",
+  "shots": 2,
+  "cards": 2,
+  "retriever": "bm25",
+  "split": [
+    "val",
+    "test"
+  ],
+  "gold": true,
+  "limit": null,
+  "out": "experiments/eval/baseline-schema",
+  "argv": [
+    "eval",
+    "--model",
+    "mlx-community/Qwen2.5-3B-Instruct-4bit",
+    "--prompt",
+    "schema",
+    "--split",
+    "val",
+    "--split",
+    "test",
+    "--gold",
+    "--out",
+    "experiments/eval/baseline-schema"
+  ]
+}

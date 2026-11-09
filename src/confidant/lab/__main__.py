@@ -98,15 +98,19 @@ def _corpus(args: argparse.Namespace) -> int:
 
 def _backend(args: argparse.Namespace):
     from confidant.lab.backend import MlxBackend
-    from confidant.lab.prompts import PROMPTS
+    from confidant.lab.prompts import PROMPTS, last_messages
 
+    builder = PROMPTS[args.prompt](args)
+    if args.max_messages:
+        builder = last_messages(builder, args.max_messages)
     return MlxBackend(
         args.model,
         adapter=args.adapter,
         max_tokens=args.max_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
-        messages=PROMPTS[args.prompt](args),
+        messages=builder,
+        repair_quotes=args.repair_quotes,
     )
 
 
@@ -200,9 +204,126 @@ def _retrieval(args: argparse.Namespace) -> int:
     return 0
 
 
+def _ungrounded(old):
+    """A saved read as it would score with no grounding and no severity floors at all."""
+    from dataclasses import replace
+
+    from confidant.lab.backend import LocalOutputError, parse_scan
+
+    try:
+        scan = parse_scan(old.raw)
+    except LocalOutputError:
+        return replace(old, valid=False, found=[], returned=0, discarded=0)
+    found = [(f.category, f.severity) for f in scan.flags]
+    return replace(old, valid=True, found=found, returned=len(found), discarded=0)
+
+
+def _rescore(args: argparse.Namespace) -> int:
+    """Replay a run's saved answers through parsing, repair, and grounding: no model."""
+    from confidant.lab.backend import MlxBackend
+    from confidant.lab.data import load_examples
+    from confidant.lab.evaluate import Read, evaluate, save_run, score, scores_table
+
+    run = Path(args.path)
+    saved = [Read(**json.loads(line)) for line in (run / "reads.jsonl").read_text().splitlines()]
+    examples = {e.id: e for e in load_examples(EXAMPLES)}
+    if args.only_split:
+        saved = [r for r in saved if examples[r.id].split == args.only_split]
+    reads = []
+    for old in saved:
+        if old.raw is None:  # nothing to replay; keep the read as it was
+            reads.append(old)
+            continue
+        if args.no_grounding:
+            new = _ungrounded(old)
+            reads.append(new)
+            continue
+        backend = MlxBackend("replay", generate=lambda _m, raw=old.raw: raw)
+        backend.repair_quotes = args.repair_quotes
+        [new] = evaluate(backend, [examples[old.id]])
+        new.seconds, new.tokens_per_second = old.seconds, old.tokens_per_second
+        new.peak_memory_gb = old.peak_memory_gb
+        reads.append(new)
+    scores = score(reads)
+    config = json.loads((run / "config.json").read_text())
+    config |= {
+        "rescored_from": str(run),
+        "repair_quotes": args.repair_quotes,
+        "no_grounding": args.no_grounding,
+        "argv": args.argv,
+    }
+    save_run(Path(args.out), config=config, reads=reads, scores=scores)
+    print(scores_table([(Path(args.out).name, scores.row())]))
+    return 0
+
+
+def _errors(args: argparse.Namespace) -> int:
+    """Every mistake in a run, grouped, with what the model said: for error analysis."""
+    from collections import Counter
+
+    from confidant.analysis.flags import TIERS
+    from confidant.lab.data import load_examples
+    from confidant.lab.evaluate import Read
+
+    run = Path(args.path)
+    reads = [Read(**json.loads(line)) for line in (run / "reads.jsonl").read_text().splitlines()]
+    examples = {e.id: e for e in load_examples(EXAMPLES)}
+
+    def said(r: Read) -> str:
+        if not r.valid:
+            return f"unusable answer ({(r.error or '')[:60]})"
+        return ", ".join(f"{c} ({sev})" for c, sev in r.found) or "no flags"
+
+    groups: dict[str, list[str]] = {
+        "missed": [],
+        "under-rated danger": [],
+        "wrong category": [],
+        "false alarm": [],
+    }
+    for r in reads:
+        e = examples[r.id]
+        planted = e.label["flags"][0]["evidence"][0]["quote"] if e.label["flags"] else ""
+        if r.kind == "flag" and not r.flagged:
+            groups["missed"].append(f'`{r.id}` {r.category}/{r.severity}: "{planted}" → {said(r)}')
+        elif r.kind == "flag":
+            if r.category not in {c for c, _ in r.found}:
+                groups["wrong category"].append(f"`{r.id}` {r.category} → {said(r)}")
+            if r.severity == "danger" and r.top_tier < TIERS["danger"]:
+                groups["under-rated danger"].append(f"`{r.id}` {r.category} → {said(r)}")
+        elif r.flagged:
+            imitates = next((s for s in [examples[r.id].scenario] if s.startswith("hard")), "clean")
+            groups["false alarm"].append(f"`{r.id}` ({imitates}) → {said(r)}")
+        if r.kind == "flag" and r.severity == "danger" and not r.flagged:
+            groups["under-rated danger"].append(f"`{r.id}` {r.category} → {said(r)}")
+
+    print(f"# Errors in `{run}`\n")
+    missed_by = Counter(examples[x.split("`")[1]].category for x in groups["missed"])
+    print("Missed, by category: " + ", ".join(f"{k} {v}" for k, v in missed_by.most_common()))
+    for name, items in groups.items():
+        print(f"\n## {name} ({len(items)})\n")
+        print("\n".join(f"- {i}" for i in items) or "- none")
+    return 0
+
+
+def _table(args: argparse.Namespace) -> int:
+    """Saved runs as one markdown table, in the order given."""
+    from confidant.lab.evaluate import scores_table
+
+    rows = []
+    for name in args.runs:
+        path = Path(name)
+        scores = json.loads((path / "scores.json").read_text())
+        gold = path / "gold.json"
+        if gold.exists():
+            scores["gold_pass"] = json.loads(gold.read_text())["pass_rate"]
+        rows.append((path.name, scores))
+    print(scores_table(rows))
+    return 0
+
+
 def _reproduce(args: argparse.Namespace) -> int:
     """Rerun a saved experiment from what it recorded about itself."""
-    path = Path(args.run)
+    path = Path(args.path)
     if (path / "config.json").exists():
         argv = list(json.loads((path / "config.json").read_text())["argv"])
         # Write beside the original, so the two can be compared rather than overwritten.
@@ -226,7 +347,13 @@ def _add_backend_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--prompt", default="schema", help="prompt variant (confidant.lab.prompts)")
     p.add_argument("--shots", type=int, default=2, help="examples in the few-shot prompt")
     p.add_argument("--cards", type=int, default=2, help="cards retrieved for the rag prompt")
-    p.add_argument("--retriever", default="bm25", help="bm25 or embed, for the rag prompt")
+    p.add_argument(
+        "--retriever", default="bm25max", help="for the rag prompt: bm25, bm25max, embed"
+    )
+    p.add_argument("--max-messages", type=int, help="show the model only the last N messages")
+    p.add_argument(
+        "--repair-quotes", action="store_true", help="split quotes that stitch whole messages"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -281,8 +408,26 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default="experiments/retrieval/recall.json")
     p.set_defaults(run=_retrieval)
 
+    p = sub.add_parser("rescore", help="replay a run's saved answers with other checks")
+    p.add_argument("path", metavar="run", help="an experiments/ directory")
+    p.add_argument("--repair-quotes", action="store_true")
+    p.add_argument(
+        "--no-grounding", action="store_true", help="ablation: take the model's flags as given"
+    )
+    p.add_argument("--only", dest="only_split", help="score only this split of the saved reads")
+    p.add_argument("--out", required=True)
+    p.set_defaults(run=_rescore)
+
+    p = sub.add_parser("errors", help="step 7: every mistake in a run, grouped")
+    p.add_argument("path", metavar="run")
+    p.set_defaults(run=_errors)
+
+    p = sub.add_parser("table", help="saved runs as one markdown table")
+    p.add_argument("runs", nargs="+")
+    p.set_defaults(run=_table)
+
     p = sub.add_parser("reproduce", help="step 8: rerun a saved experiment from its record")
-    p.add_argument("run", help="an experiments/ directory")
+    p.add_argument("path", metavar="run", help="an experiments/ directory")
     p.set_defaults(run=_reproduce)
 
     args = parser.parse_args(argv)

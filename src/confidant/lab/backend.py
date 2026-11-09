@@ -23,7 +23,13 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from confidant.analysis.flags import FlagScan
+from confidant.analysis.flags import (
+    _EDGE_PUNCTUATION,
+    Evidence,
+    FlagScan,
+    _normalize,
+    quote_appears_in,
+)
 from confidant.models import Conversation
 from confidant.progress import Progress
 from confidant.prompts.flags import FLAGS_SYSTEM, build_flags_request
@@ -36,6 +42,7 @@ __all__ = [
     "MlxBackend",
     "build_local_messages",
     "parse_scan",
+    "split_stitched",
 ]
 
 Messages = list[dict[str, str]]
@@ -49,6 +56,47 @@ before or after it, and no code fence.
 
 
 _THINKING = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+_SEPARATOR = re.compile(r"^[\s,.;:!?-]*")
+
+
+def _pieces(quote: str, messages: list[str]) -> list[str] | None:
+    """``quote`` as two or more whole messages run together, or None if it is not one."""
+    rest = _normalize(quote).strip(_EDGE_PUNCTUATION)
+    by_text = {_normalize(m).strip(_EDGE_PUNCTUATION): m for m in messages}
+    found = []
+    while rest:
+        match = max((t for t in by_text if t and rest.startswith(t)), key=len, default=None)
+        if match is None:
+            return None
+        found.append(by_text[match])
+        rest = _SEPARATOR.sub("", rest[len(match) :])
+    return found if len(found) > 1 else None
+
+
+def split_stitched(scan: FlagScan, conversation: Conversation) -> FlagScan:
+    """Split quotes that run several of the match's messages together into one per message.
+
+    Small fine-tuned models found the right lines and then quoted two consecutive messages
+    as one string, which grounding rightly refuses: a stitched quote can say something
+    neither message said. Here, a quote that does not appear in any single message, but
+    is *exactly* a run of whole messages, becomes one quote per message. Each piece is
+    then a verbatim message, so grounding is as strict as before; anything else is left
+    for grounding to discard.
+    """
+    messages = [m.text for m in conversation.match_messages]
+    repaired = scan.model_copy(deep=True)
+    for flag in repaired.flags:
+        evidence = []
+        for e in flag.evidence:
+            parts = None if quote_appears_in(e.quote, messages) else _pieces(e.quote, messages)
+            if parts:
+                evidence += [Evidence(quote=p, why_it_matters=e.why_it_matters) for p in parts]
+            else:
+                evidence.append(e)
+        flag.evidence = evidence
+    return repaired
 
 
 class LocalOutputError(ValueError):
@@ -198,7 +246,8 @@ class MlxBackend:
     building a backend is cheap and works where mlx-lm is not installed. ``generate``
     replaces the model entirely (messages in, text out); tests and lab code without a
     model pass one. ``messages`` builds the prompt, so the lab can try other prompts (few
-    shot, retrieved cards) through the same backend. ``last_raw`` keeps the most recent
+    shot, retrieved cards) through the same backend. ``repair_quotes`` applies
+    :func:`split_stitched` before grounding. ``last_raw`` keeps the most recent
     answer, usable or not.
     """
 
@@ -214,8 +263,10 @@ class MlxBackend:
         top_p: float = 1.0,
         generate: Callable[[Messages], str] | None = None,
         messages: Callable[[Conversation], Messages] = build_local_messages,
+        repair_quotes: bool = False,
     ) -> None:
         self.model = model
+        self.repair_quotes = repair_quotes
         self.adapter = adapter
         self._generate = generate or LocalModel(
             model, adapter=adapter, max_tokens=max_tokens, temperature=temperature, top_p=top_p
@@ -235,7 +286,8 @@ class MlxBackend:
         on_usage: Callable[[Usage], None] | None = None,
     ) -> FlagScan:
         self.last_raw = self._generate(self._messages(conversation))
-        return parse_scan(self.last_raw)
+        scan = parse_scan(self.last_raw)
+        return split_stitched(scan, conversation) if self.repair_quotes else scan
 
 
 def _chat_prompt(tokenizer: Any, messages: Messages) -> str:

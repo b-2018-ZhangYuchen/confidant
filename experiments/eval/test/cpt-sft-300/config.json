@@ -1,0 +1,35 @@
+{
+  "command": "eval",
+  "model": "lab-cache/models/qwen2.5-3b-cpt",
+  "adapter": "lab-cache/adapters/cpt-sft-300",
+  "max_tokens": 1024,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "prompt": "compact",
+  "shots": 2,
+  "cards": 2,
+  "retriever": "bm25max",
+  "max_messages": null,
+  "repair_quotes": true,
+  "split": [
+    "test"
+  ],
+  "gold": true,
+  "limit": null,
+  "out": "experiments/eval/test/cpt-sft-300",
+  "argv": [
+    "eval",
+    "--model",
+    "lab-cache/models/qwen2.5-3b-cpt",
+    "--adapter",
+    "lab-cache/adapters/cpt-sft-300",
+    "--prompt",
+    "compact",
+    "--repair-quotes",
+    "--split",
+    "test",
+    "--gold",
+    "--out",
+    "experiments/eval/test/cpt-sft-300"
+  ]
+}

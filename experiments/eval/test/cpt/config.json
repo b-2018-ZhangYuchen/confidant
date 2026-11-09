@@ -1,0 +1,32 @@
+{
+  "command": "eval",
+  "model": "lab-cache/models/qwen2.5-3b-cpt",
+  "adapter": null,
+  "max_tokens": 1024,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "prompt": "compact",
+  "shots": 2,
+  "cards": 2,
+  "retriever": "bm25max",
+  "max_messages": null,
+  "repair_quotes": false,
+  "split": [
+    "test"
+  ],
+  "gold": true,
+  "limit": null,
+  "out": "experiments/eval/test/cpt",
+  "argv": [
+    "eval",
+    "--model",
+    "lab-cache/models/qwen2.5-3b-cpt",
+    "--prompt",
+    "compact",
+    "--split",
+    "test",
+    "--gold",
+    "--out",
+    "experiments/eval/test/cpt"
+  ]
+}

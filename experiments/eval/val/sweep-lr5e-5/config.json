@@ -1,0 +1,34 @@
+{
+  "command": "eval",
+  "model": "mlx-community/Qwen2.5-3B-Instruct-4bit",
+  "adapter": "lab-cache/adapters/sweep-lr5e-5",
+  "max_tokens": 1024,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "prompt": "compact",
+  "shots": 2,
+  "cards": 2,
+  "retriever": "bm25max",
+  "max_messages": null,
+  "repair_quotes": true,
+  "split": [
+    "val"
+  ],
+  "gold": false,
+  "limit": null,
+  "out": "experiments/eval/val/sweep-lr5e-5",
+  "argv": [
+    "eval",
+    "--model",
+    "mlx-community/Qwen2.5-3B-Instruct-4bit",
+    "--adapter",
+    "lab-cache/adapters/sweep-lr5e-5",
+    "--prompt",
+    "compact",
+    "--repair-quotes",
+    "--split",
+    "val",
+    "--out",
+    "experiments/eval/val/sweep-lr5e-5"
+  ]
+}

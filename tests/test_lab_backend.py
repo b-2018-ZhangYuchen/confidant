@@ -7,9 +7,10 @@ import sys
 
 import pytest
 
-from confidant.analysis.flags import FlagBackend, analyze_flags
-from confidant.ingest.transcript import read_transcript
+from confidant.analysis.flags import FlagBackend, FlagScan, analyze_flags
+from confidant.ingest.transcript import parse_transcript, read_transcript
 from confidant.lab import LocalOutputError, MlxBackend, build_local_messages, parse_scan
+from confidant.lab.backend import split_stitched
 
 GOOD = {
     "flags": [
@@ -129,3 +130,36 @@ def test_without_mlx_lm_the_error_says_how_to_get_it(pressure, monkeypatch):
     monkeypatch.setitem(sys.modules, "mlx_lm", None)
     with pytest.raises(RuntimeError, match=r"confidant-agent\[lab\]"):
         MlxBackend("no-model").scan(pressure)
+
+
+# -- stitched quotes ------------------------------------------------------
+
+
+def _stitched(*quotes: str) -> FlagScan:
+    flag = dict(GOOD["flags"][0], evidence=[{"quote": q, "why_it_matters": "x"} for q in quotes])
+    return FlagScan.model_validate(dict(GOOD, flags=[flag]))
+
+
+def test_a_quote_that_runs_two_whole_messages_together_is_split():
+    conversation = parse_transcript(
+        "# owner: Sam\n# match: Robin\nSam: hi\nRobin: you will regret it\nRobin: I mean it\n"
+    )
+    repaired = split_stitched(_stitched("you will regret it, I mean it"), conversation)
+    assert [e.quote for e in repaired.flags[0].evidence] == ["you will regret it", "I mean it"]
+
+
+def test_a_partial_or_invented_stitch_is_left_for_grounding_to_discard():
+    conversation = parse_transcript(
+        "# owner: Sam\n# match: Robin\nSam: hi\nRobin: you will regret it\nRobin: I mean it\n"
+    )
+    for quote in ("you will regret it, and I mean it", "regret it, I mean it", "hello"):
+        repaired = split_stitched(_stitched(quote), conversation)
+        assert [e.quote for e in repaired.flags[0].evidence] == [quote]
+
+
+def test_the_owners_messages_are_never_used_to_repair_a_quote():
+    conversation = parse_transcript(
+        "# owner: Sam\n# match: Robin\nSam: stop\nRobin: you will regret it\n"
+    )
+    repaired = split_stitched(_stitched("you will regret it, stop"), conversation)
+    assert [e.quote for e in repaired.flags[0].evidence] == ["you will regret it, stop"]

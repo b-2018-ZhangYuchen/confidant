@@ -1,6 +1,9 @@
 # --- Privacy: never commit real conversations ---------------------------
 # This project reads private chat logs. Everything below stays local.
 data/
+# The one exception: the lab's generated transcripts, fictional by construction and
+# each headed "Entirely fictional" (see docs/lab/data.md).
+!lab/data/
 private/
 transcripts/
 *.transcript

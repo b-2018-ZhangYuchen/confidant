@@ -1,5 +1,5 @@
 # Fine-tune from the continued-pre-training checkpoint: QLoRA on the train split (redacted compact prompt -> label JSON), prompt
-# masked out of the loss, val split for validation loss. About 2 epochs.
+# masked out of the loss, val split for validation loss. 2 epochs over 180 examples.
 kind: sft
 name: cpt-sft
 prompt: compact
@@ -10,7 +10,7 @@ mask_prompt: true
 num_layers: 16
 batch_size: 1
 grad_accumulation_steps: 4
-iters: 400
+iters: 360
 learning_rate: 1.0e-4
 max_seq_length: 3072
 grad_checkpoint: true

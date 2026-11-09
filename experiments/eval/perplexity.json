@@ -1,0 +1,14 @@
+[
+  {
+    "model": "mlx-community/Qwen2.5-3B-Instruct-4bit",
+    "adapter": null,
+    "dialogue": 5.7450796562134,
+    "transcripts": 7.48816032622595
+  },
+  {
+    "model": "lab-cache/models/qwen2.5-3b-cpt",
+    "adapter": null,
+    "dialogue": 3.982941404331761,
+    "transcripts": 7.878378805577921
+  }
+]
