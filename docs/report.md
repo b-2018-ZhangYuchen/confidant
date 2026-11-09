@@ -1,6 +1,6 @@
 # Confidant: adapting a local model for evidence-grounded red-flag detection
 
-Yuchen Zhang — GenAI course project report (draft)
+Yuchen Zhang — GenAI course project report (draft) · 中文版：[report.zh.md](report.zh.md)
 
 ## 1. Problem
 
