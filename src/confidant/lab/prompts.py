@@ -10,6 +10,9 @@ own system prompt, so a difference in score is a difference in what was added:
   turns of the chat.
 - ``rag`` — ``compact`` plus the pattern cards most relevant to this transcript
   (:mod:`confidant.lab.rag`).
+- ``guide`` — ``compact`` plus passages of relationship guidance retrieved for this
+  transcript (:mod:`confidant.lab.guidance`), and the "not a flag" card.
+- ``cards+guide`` — both: the retrieved cards, then the retrieved guidance.
 """
 
 from __future__ import annotations
@@ -112,9 +115,46 @@ def last_messages(builder: Builder, count: int) -> Builder:
     return build
 
 
+GUIDE_NOTE = (
+    "Background from published relationship guidance, retrieved for this conversation. "
+    "Use it to judge what is ordinary in dating and what is not; do not quote it, and "
+    "flag only what the match's own messages show:"
+)
+
+
+def guide(k: int, chunking: str, retriever: str, cards: int = 0, pool: str = "all") -> Builder:
+    from confidant.lab.rag import CardIndex, PassageIndex
+
+    passages = PassageIndex.load(chunking=chunking, retriever=retriever, pool=pool)
+    card_index = CardIndex.load(retriever="bm25max") if cards else None
+
+    def build(conversation: Conversation) -> Messages:
+        lines = [m.text for m in conversation.match_messages]
+        parts = []
+        if card_index is not None:
+            parts += [c.text for c in card_index.search(lines, k=cards)]
+        parts.append(NOT_A_FLAG.read_text().strip())
+        found = passages.search(lines, k=k)
+        guidance = "\n\n".join(f"[{p.source}: {p.title}]\n{p.text}" for p in found)
+        extra = "\n\n".join(parts) + "\n\n" + GUIDE_NOTE + "\n\n" + guidance
+        return compact_messages(conversation, extra)
+
+    return build
+
+
 PROMPTS: dict[str, Callable[[argparse.Namespace], Builder]] = {
     "schema": lambda args: build_local_messages,
     "compact": lambda args: compact_messages,
     "fewshot": lambda args: fewshot(args.shots),
     "rag": lambda args: rag(args.cards, args.retriever),
+    "guide": lambda args: guide(
+        args.guide_k, args.guide_chunking, args.guide_retriever, pool=args.guide_pool
+    ),
+    "cards+guide": lambda args: guide(
+        args.guide_k,
+        args.guide_chunking,
+        args.guide_retriever,
+        cards=args.cards,
+        pool=args.guide_pool,
+    ),
 }

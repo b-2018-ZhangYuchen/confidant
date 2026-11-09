@@ -1,0 +1,43 @@
+{
+  "command": "eval",
+  "model": "mlx-community/Qwen2.5-3B-Instruct-4bit",
+  "adapter": "lab-cache/adapters/sft-300",
+  "max_tokens": 1024,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "prompt": "guide",
+  "shots": 2,
+  "cards": 2,
+  "retriever": "bm25max",
+  "max_messages": null,
+  "guide_k": 4,
+  "guide_chunking": "window",
+  "guide_retriever": "embed",
+  "repair_quotes": true,
+  "split": [
+    "val"
+  ],
+  "gold": false,
+  "limit": null,
+  "out": "experiments/eval/val/guide-window-embed-k4",
+  "argv": [
+    "eval",
+    "--model",
+    "mlx-community/Qwen2.5-3B-Instruct-4bit",
+    "--adapter",
+    "lab-cache/adapters/sft-300",
+    "--repair-quotes",
+    "--prompt",
+    "guide",
+    "--split",
+    "val",
+    "--guide-chunking",
+    "window",
+    "--guide-retriever",
+    "embed",
+    "--guide-k",
+    "4",
+    "--out",
+    "experiments/eval/val/guide-window-embed-k4"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "dialogues": 120,
+  "manipulative": 60,
+  "non_manipulative": 60,
+  "reads": 240,
+  "valid": 0.9958333333333333,
+  "precision": 0.5729166666666666,
+  "recall": 0.9166666666666666,
+  "f1": 0.7051282051282051,
+  "false_alarm": 0.6833333333333333,
+  "danger_on_non_manipulative": 13,
+  "category_agreement": null,
+  "recall_by_technique": {}
+}

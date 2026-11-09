@@ -29,7 +29,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-__all__ = ["CARDS_DIR", "Card", "CardIndex", "retrieval_recall"]
+__all__ = ["CARDS_DIR", "Card", "CardIndex", "PassageIndex", "retrieval_recall"]
 
 CARDS_DIR = Path("lab/cards")
 DEFAULT_EMBEDDER = "sentence-transformers/all-MiniLM-L6-v2"
@@ -82,15 +82,22 @@ class _Embedder:
 
         self.model, self.tokenizer = load(model)
 
-    def __call__(self, texts: Sequence[str]):
+    def __call__(self, texts: Sequence[str], batch: int = 64):
         import mlx.core as mx
 
-        inputs = self.tokenizer.batch_encode_plus(
-            list(texts), return_tensors="mlx", padding=True, truncation=True, max_length=256
-        )
-        out = self.model(inputs["input_ids"], attention_mask=inputs["attention_mask"])
-        e = out.text_embeds
-        return e / mx.linalg.norm(e, axis=-1, keepdims=True)
+        parts = []
+        for start in range(0, len(texts), batch):
+            inputs = self.tokenizer.batch_encode_plus(
+                list(texts[start : start + batch]),
+                return_tensors="mlx",
+                padding=True,
+                truncation=True,
+                max_length=256,
+            )
+            out = self.model(inputs["input_ids"], attention_mask=inputs["attention_mask"])
+            e = out.text_embeds
+            parts.append(e / mx.linalg.norm(e, axis=-1, keepdims=True))
+        return mx.concatenate(parts, axis=0)
 
 
 class CardIndex:
@@ -139,3 +146,57 @@ def retrieval_recall(index: CardIndex, examples: Sequence, k: int) -> dict[str, 
         lines = [m.text for m in e.conversation().match_messages]
         hits += e.category in {c.key for c in index.search(lines, k)}
     return {"k": k, "recall": hits / len(flagged) if flagged else 0.0, "n": len(flagged)}
+
+
+class PassageIndex:
+    """Retrieval over the relationship-guidance corpus (:mod:`confidant.lab.guidance`).
+
+    The same two retrievers as the cards, over hundreds of passages instead of eleven:
+    ``bm25max`` scores each of the match's lines against every passage and keeps a
+    passage's best line; ``embed`` does the same with sentence embeddings. Lines under
+    four words ("ok", "lol") are left out of the query, since against a large corpus
+    they match nothing in particular and only add noise. Results are deduplicated by
+    source page, so the ``k`` passages come from ``k`` different pages.
+    """
+
+    def __init__(self, passages: Sequence, retriever: str = "bm25max") -> None:
+        self.passages = list(passages)
+        self.retriever = retriever
+        texts = [f"{p.title}. {p.text}" for p in self.passages]
+        if retriever == "bm25max":
+            self._bm25 = _BM25(texts)
+        elif retriever == "embed" or retriever.startswith("embed:"):
+            name = retriever.split(":", 1)[1] if ":" in retriever else DEFAULT_EMBEDDER
+            self._embed = _Embedder(name)
+            self._vectors = self._embed(texts)
+        else:
+            raise ValueError(f"unknown retriever {retriever!r} for passages: bm25max or embed")
+
+    @classmethod
+    def load(
+        cls, chunking: str = "window", retriever: str = "bm25max", pool: str = "all"
+    ) -> PassageIndex:
+        from confidant.lab.guidance import load_passages
+
+        return cls(load_passages(chunking, pool=pool), retriever)
+
+    def search(self, match_lines: Sequence[str], k: int = 3) -> list:
+        lines = [line for line in match_lines if len(line.split()) >= 4] or list(match_lines)
+        if not lines:
+            return []
+        if self.retriever == "bm25max":
+            per_line = [self._bm25.scores(line) for line in lines]
+            scores = [max(col) for col in zip(*per_line, strict=True)]
+        else:
+            sims = self._embed(lines) @ self._vectors.T
+            scores = sims.max(axis=0).tolist()
+        found, pages = [], set()
+        for i in sorted(range(len(self.passages)), key=lambda i: -scores[i]):
+            page = self.passages[i].url
+            if page in pages:
+                continue
+            pages.add(page)
+            found.append(self.passages[i])
+            if len(found) == k:
+                break
+        return found

@@ -1,0 +1,18 @@
+{
+  "counts": {
+    "dropped_label:paragraph": 34,
+    "dropped_label:window": 27,
+    "pages:cdc.gov": 2,
+    "pages:opa.hhs.gov": 1,
+    "pages:wikipedia": 24,
+    "pages:womenshealth.gov": 9,
+    "pages:youth.gov": 3,
+    "passages:paragraph": 1937,
+    "passages:window": 737,
+    "words:paragraph": 116853,
+    "words:window": 115383
+  },
+  "failed": [
+    "https://youth.gov/feature-article/dating-matters-understanding-teen-dating-violence-prevention: HTTP Error 403: Forbidden"
+  ]
+}

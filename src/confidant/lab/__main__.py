@@ -85,6 +85,17 @@ def _generate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _guidance(args: argparse.Namespace) -> int:
+    from confidant.lab.guidance import build_guidance
+
+    stats = build_guidance()
+    out = Path("experiments/guidance/stats.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(stats, indent=2) + "\n")
+    print(json.dumps(stats, indent=2))
+    return 0
+
+
 def _corpus(args: argparse.Namespace) -> int:
     from confidant.lab.corpus import build_corpus
 
@@ -339,13 +350,14 @@ def _reproduce(args: argparse.Namespace) -> int:
 
 
 def _external(args: argparse.Namespace) -> int:
-    """An outside, human-written test set: MentalManip, both speakers as the match."""
+    """An outside test set (MentalManip or ReaMent), both speakers as the match."""
     from dataclasses import asdict
 
     from confidant.lab.evaluate import evaluate
-    from confidant.lab.external import directions, load_mentalmanip, score_external
+    from confidant.lab.external import directions, load_mentalmanip, load_reament, score_external
 
-    dialogues = load_mentalmanip(per_class=args.per_class, seed=args.seed)
+    load = {"mentalmanip": load_mentalmanip, "reament": load_reament}[args.dataset]
+    dialogues = load(per_class=args.per_class, seed=args.seed)
     examples = [e for d in dialogues for e in directions(d)]
     backend = _backend(args)
 
@@ -367,7 +379,7 @@ def _external(args: argparse.Namespace) -> int:
             f.write(json.dumps(asdict(r), ensure_ascii=False) + "\n")
     keys = ("f1", "precision", "recall", "false_alarm", "category_agreement", "valid")
     print(
-        " ".join(f"{k}={scores[k]:.2f}" for k in keys),
+        " ".join(f"{k}={scores[k]:.2f}" for k in keys if scores[k] is not None),
         f"danger_on_clean={scores['danger_on_non_manipulative']}",
     )
     return 0
@@ -386,6 +398,10 @@ def _add_backend_args(p: argparse.ArgumentParser) -> None:
         "--retriever", default="bm25max", help="for the rag prompt: bm25, bm25max, embed"
     )
     p.add_argument("--max-messages", type=int, help="show the model only the last N messages")
+    p.add_argument("--guide-k", type=int, default=3, help="guidance passages to retrieve")
+    p.add_argument("--guide-chunking", default="window", choices=("window", "paragraph"))
+    p.add_argument("--guide-retriever", default="bm25max", help="bm25max, embed, embed:<model>")
+    p.add_argument("--guide-pool", default="all", choices=("all", "ordinary", "abuse"))
     p.add_argument(
         "--repair-quotes", action="store_true", help="split quotes that stitch whole messages"
     )
@@ -416,6 +432,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--seed", type=int, default=0)
     p.set_defaults(run=_corpus)
 
+    p = sub.add_parser("guidance", help="build the relationship-guidance corpus for RAG")
+    p.set_defaults(run=_guidance)
+
     p = sub.add_parser("eval", help="steps 3 and 6: score a backend on the splits")
     _add_backend_args(p)
     p.add_argument("--split", action="append", default=None, help="train, val, or test")
@@ -424,8 +443,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", required=True)
     p.set_defaults(run=_eval)
 
-    p = sub.add_parser("external", help="score a backend on MentalManip (outside data)")
+    p = sub.add_parser("external", help="score a backend on outside data (MentalManip, ReaMent)")
     _add_backend_args(p)
+    p.add_argument("--dataset", choices=("mentalmanip", "reament"), default="mentalmanip")
     p.add_argument("--per-class", type=int, default=60)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", required=True)

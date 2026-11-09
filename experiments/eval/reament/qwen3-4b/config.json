@@ -1,0 +1,29 @@
+{
+  "command": "external",
+  "model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+  "adapter": null,
+  "max_tokens": 1024,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "prompt": "schema",
+  "shots": 2,
+  "cards": 2,
+  "retriever": "bm25max",
+  "max_messages": null,
+  "repair_quotes": false,
+  "dataset": "reament",
+  "per_class": 60,
+  "seed": 0,
+  "out": "experiments/eval/reament/qwen3-4b",
+  "argv": [
+    "external",
+    "--dataset",
+    "reament",
+    "--model",
+    "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+    "--prompt",
+    "schema",
+    "--out",
+    "experiments/eval/reament/qwen3-4b"
+  ]
+}

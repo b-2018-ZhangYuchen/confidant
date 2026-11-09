@@ -46,5 +46,6 @@ htmlcov/
 *.swp
 lab-cache/
 
-# MentalManip is CC BY-NC; its runs keep scores and configs, not reads that quote it.
+# MentalManip (CC BY-NC) and ReaMent (CC BY-NC-ND): keep scores and configs, not reads that quote them.
 experiments/eval/mentalmanip/*/reads.jsonl
+experiments/eval/reament/*/reads.jsonl

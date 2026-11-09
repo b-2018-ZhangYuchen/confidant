@@ -927,14 +927,15 @@ run the red-flag check on your own machine. The full report is
 | 3–5. Baseline, customization, parameters | prompting, RAG, continued pre-training, QLoRA fine-tuning, sweeps | [experiments.md](docs/lab/experiments.md) |
 | 6–7. Comparison, ablation | test split and gold set; one component removed at a time | [results.md](docs/lab/results.md) |
 | 8. Reproducibility | configs, saved answers, `reproduce`, model card | [model-card.md](docs/lab/model-card.md) |
-| Outside test | 120 human-written MentalManip dialogues: the gain holds, but by less, and with many more false alarms | [external.md](docs/lab/external.md) |
+| RAG over guidance | 39 pages of published relationship guidance; best danger recall on the synthetic test, no fix for false alarms on real speech | [guidance.md](docs/lab/guidance.md) |
+| Outside tests | 120 MentalManip movie dialogues and 120 ReaMent real conversations: the gain shrinks, and on real speech it is gone | [external.md](docs/lab/external.md) |
 
 On transcripts from scenarios it never saw, the fine-tuned 3B model reaches F1 0.78. The
 same model out of the box scores 0.00, and Qwen3-4B out of the box scores 0.42. It
 passes 92% of the hand-written eval checks. It still files 4 of 15 danger cases below
 danger. On human-written movie dialogue (MentalManip) it still leads, but only by 0.74 vs
-0.66 F1, and it flags most ordinary dialogue at watch tier. That is why Claude stays the
-default.
+0.66 F1. On real, unscripted speech (ReaMent) it no longer leads, and it flags 87% of
+ordinary conversations, mostly at watch tier. That is why Claude stays the default.
 
 The lab needs Apple silicon and its own extra:
 

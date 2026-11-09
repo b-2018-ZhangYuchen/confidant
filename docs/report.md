@@ -166,9 +166,44 @@ across all 11 techniques. Each dialogue is checked with each speaker as the matc
   rest were errors.
 - **RAG improved category agreement**, as on the synthetic test.
 
+**ReaMent** (WWW 2026, CC BY-NC-ND 4.0) has the same labels on *unscripted* speech
+transcribed from web videos. It is the closest thing here to real conversations. On the
+same 60 + 60 protocol:
+
+| System | F1 | P | R | False alarms (any / danger) |
+|---|---:|---:|---:|---:|
+| + few-shot | **0.71** | 0.66 | 0.77 | 24 / 21 |
+| Qwen3-4B as released | 0.65 | **0.67** | 0.63 | **19 / 3** |
+| Fine-tune + repair | 0.67 | 0.52 | **0.93** | 52 / 12 |
+| Fine-tune + repair + cards | 0.70 | 0.57 | 0.92 | 42 / 10 |
+
+On real speech, **the fine-tune no longer wins.** Its precision falls at each step away
+from the synthetic data (0.88 → 0.62 → 0.52) while recall stays at 0.93. What it learned
+is to find *something* in the match's lines.
+
 → [lab/external.md](lab/external.md)
 
-## 10. Reproducibility (step 8)
+## 10. RAG over relationship guidance
+
+The pattern cards were my own words, and picking 2 of 11 is barely retrieval. So RAG was
+rebuilt on a real corpus of relationship guidance: 39 pages (US government health sites,
+public domain, and 24 Wikipedia articles, CC BY-SA), about 116k words. wikiHow was
+dropped because it blocks Anthropic's crawler.
+
+- **Grid on val** (chunking × retriever × k): embeddings beat BM25, and more passages made
+  the model more cautious. Paragraphs + MiniLM + k=4 scored F1 0.80 at precision 1.00.
+- **Synthetic test:** the best danger recall of any system (2 of 15 missed, against 4)
+  and the best F1 (0.79).
+- **Outside sets:** it did not fix false alarms. ReaMent went 87% → 78%; the cards
+  reached 70%. Danger-tier false alarms rose from 12 to 15.
+- **A tested explanation, refuted:** the corpus is 46% abuse material, which looked like
+  the cause. Retrieving only ordinary-relationship passages made danger false alarms
+  *worse* (18). Any retrieved text pushes this fine-tuned model toward danger, most
+  likely because it was trained without retrieval in its prompts.
+
+→ [lab/guidance.md](lab/guidance.md)
+
+## 11. Reproducibility (step 8)
 
 - **Code:** everything is in `confidant.lab` (`python -m confidant.lab --help`), behind
   the `lab` extra, tested offline: the core suite runs without it.
@@ -180,16 +215,17 @@ across all 11 techniques. Each dialogue is checked with each speaker as the matc
   adapters, and the downloaded corpus are rebuilt from scripts.
 - **Model card:** [lab/model-card.md](lab/model-card.md).
 
-## 11. Conclusions and limits
+## 12. Conclusions and limits
 
 A 6.7M-parameter adapter, trained in 42 minutes on a laptop from 180 synthetic examples,
 turns a 3B model that saw nothing into one that catches 70% of planted flags in unseen
 scenarios. It also passes 92% of the hand-written gold checks. Its errors are the ones
 that matter most for this tool: a quarter of danger cases are not filed as danger.
 
-On human-written dialogue from outside the task, the model is still the best detector of
-the systems tried, but by a smaller margin, and it is over-eager: it flags most ordinary
-movie dialogue at watch tier.
+On human-written dialogue from outside the task, its lead shrinks: to 0.08 F1 on movie
+dialogue, and to nothing on real unscripted speech. There it flags 87% of ordinary
+conversations, mostly at watch tier, and Qwen3-4B out of the box is far better
+calibrated.
 
 So the local model is a credible **private option** beside Claude, not a replacement:
 the user who will not send a chat anywhere gets a real check, with the same grounding

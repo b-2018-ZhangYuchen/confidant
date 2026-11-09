@@ -1,4 +1,4 @@
-# An outside test: MentalManip
+# Outside tests: MentalManip and ReaMent
 
 Every other number in the lab comes from transcripts one local model wrote from one
 scenario grid. That is the lab's biggest limitation: a model can learn a generator's
@@ -107,3 +107,57 @@ How these compare with the synthetic test split:
 - **On the data question:** a dataset like this one, human-written but adjacent to the
   task, is the right kind of test set, not a training set. Training on it would teach
   "manipulation as annotated in movie scenes", which is not Confidant's task.
+
+## A second outside test: ReaMent, unscripted speech
+
+[ReaMent](https://huggingface.co/datasets/YSGao/ReaMent) (Gao et al., WWW 2026, released
+with [MentalMAD](https://github.com/Yuansheng-Gao/MentalMAD); CC BY-NC-ND 4.0) uses the
+same kind of label as MentalManip, but on **unscripted** speech: dialogues transcribed from
+web videos (interviews, group talk, everyday scenes). The consensus version has 3,355
+dialogues, 2,362 manipulative and 993 not.
+
+There are no technique labels, so only detection and false alarms are scored. The sample,
+scoring, and both-directions protocol are the same as for MentalManip (60 + 60, seed 0;
+`python -m confidant.lab external --dataset reament`). The license forbids sharing
+adaptations, so ReaMent is used only as a local test set. It is never committed and never
+trained on, and the saved reads that quote it are ignored by git.
+
+| System | Valid | F1 | P | R | False alarms | at concern+ | at danger |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Qwen2.5-3B as released | 100% | 0.00 | — | 0.00 | 0/60 | 0/60 | 0/60 |
+| Qwen2.5-3B + few-shot | 90% | **0.71** | 0.66 | 0.77 | 24/60 | 21/60 | 21/60 |
+| Qwen3-4B as released | 100% | 0.65 | **0.67** | 0.63 | **19/60** | **10/60** | **3/60** |
+| Fine-tune (iter 300) + repair | 99% | 0.67 | 0.52 | **0.93** | 52/60 | 13/60 | 12/60 |
+| Fine-tune + repair + cards | 100% | 0.70 | 0.57 | 0.92 | 42/60 | **10/60** | 10/60 |
+
+### What changes on real speech
+
+- **The ranking turns over.** On synthetic test data, fine-tuning won by 0.36 F1. On
+  scripted movie dialogue, it won by 0.08. On unscripted speech, it **does not win**:
+  few-shot has the best F1, and Qwen3-4B has the best precision and by far the fewest
+  danger-tier false alarms (3, against 12).
+- **The fine-tuned model flags almost everything.** It raised a flag on 52 of 60
+  dialogues the annotators all called non-manipulative. Most are watch tier: at concern
+  or above it is 13/60, close to the others. Real speech is full of what the synthetic
+  data taught it to call evasion and inconsistency: hedges, short answers, topic
+  changes, self-corrections.
+- **What it learned is "find something".** 55% of training transcripts had a planted
+  flag, and every one of them had the flag in the match's lines. Recall stays at 0.93 on
+  every dataset. Precision falls as the data gets more natural: 0.88 synthetic, 0.62
+  movie dialogue, 0.52 real speech.
+- **The cards help on every dataset.** False alarms dropped from 52 to 42 here and from
+  35 to 31 on MentalManip, and F1 rose. That is the direction the guidance corpus is
+  meant to push further.
+
+### Across all three test sets
+
+| System | Synthetic test F1 | MentalManip F1 | ReaMent F1 | ReaMent danger-tier false alarms |
+|---|---:|---:|---:|---:|
+| Qwen2.5-3B + few-shot | 0.30 | 0.67 | **0.71** | 21 |
+| Qwen3-4B as released | 0.42 | 0.66 | 0.65 | **3** |
+| Fine-tune + repair | **0.78** | **0.74** | 0.67 | 12 |
+| Fine-tune + repair + cards | 0.75 | **0.74** | 0.70 | 10 |
+
+The fine-tune's advantage shrinks at every step away from the generator that wrote its
+training data. Its synthetic test score is not a forecast of real-world performance; the
+ReaMent row is the closest thing this project has to one.

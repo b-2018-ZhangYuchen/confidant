@@ -1,4 +1,4 @@
-"""An outside test set: MentalManip (Wang et al., ACL 2024), human-written dialogues.
+"""Outside test sets: MentalManip (ACL 2024) and ReaMent (WWW 2026), dialogues by people.
 
 Everything else in the lab was written by one local model from one scenario grid. That
 is the lab's biggest limitation. MentalManip is a check from outside: 2,915 two-person
@@ -21,11 +21,18 @@ It is not Confidant's task, and the scoring says so rather than pretending:
 - **Techniques map to sets of categories** (:data:`TECHNIQUE_CATEGORIES`), written before
   any model was run on the data. A flag on a manipulative dialogue "agrees" if its
   category is in the set of any technique the annotators named.
+
+ReaMent (Gao et al., WWW 2026; from the MentalMAD repository) is the same kind of label
+on *unscripted* speech: 5,000 dialogues transcribed from web videos (interviews, group
+talk, everyday scenes), 3,355 in its consensus version. It has no technique labels, so
+only detection and false alarms are scored. It is CC BY-NC-ND 4.0: used here only as a
+local test set, never committed, never trained on.
 """
 
 from __future__ import annotations
 
 import csv
+import json
 import random
 import re
 from collections.abc import Sequence
@@ -38,15 +45,23 @@ from confidant.lab.evaluate import Read
 
 __all__ = [
     "MENTALMANIP",
+    "REAMENT",
     "TECHNIQUE_CATEGORIES",
     "Dialogue",
     "directions",
     "load_mentalmanip",
+    "load_reament",
     "score_external",
 ]
 
 MENTALMANIP = Path("lab-cache/external/mentalmanip-src/mentalmanip_con.csv")
-SOURCE = "https://github.com/audreycs/MentalManip (CC BY-NC 4.0)"
+REAMENT = Path("lab-cache/external/reament-src/ReaMent_con.json")
+SOURCES = {
+    "MentalManip": "adapted movie dialogue, https://github.com/audreycs/MentalManip (CC BY-NC 4.0)",
+    "ReaMent": (
+        "web-video transcript, https://huggingface.co/datasets/YSGao/ReaMent (CC BY-NC-ND 4.0)"
+    ),
+}
 
 # MentalManip's eleven techniques, and the Confidant categories a careful read could
 # file each under. Fixed before any model saw the data.
@@ -73,6 +88,7 @@ class Dialogue:
     manipulative: bool
     techniques: tuple[str, ...]
     turns: tuple[tuple[str, str], ...]
+    source: str = "MentalManip"
 
     @property
     def speakers(self) -> list[str]:
@@ -134,13 +150,34 @@ def load_mentalmanip(
     return picked + clean[:per_class]
 
 
+def load_reament(path: Path = REAMENT, *, per_class: int = 60, seed: int = 0) -> list[Dialogue]:
+    """A balanced random sample of ReaMent's consensus labels: ``per_class`` of each."""
+    dialogues = []
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            turns = _parse(row["dialogue"])
+            if turns is not None:
+                manipulative = str(row["manipulative"]).strip() == "1"
+                dialogues.append(Dialogue(str(row["id"]), manipulative, (), turns, "ReaMent"))
+    rng = random.Random(seed)
+    picked = []
+    for manipulative in (True, False):
+        group = [d for d in dialogues if d.manipulative == manipulative]
+        rng.shuffle(group)
+        picked += group[:per_class]
+    return picked
+
+
 def directions(dialogue: Dialogue) -> list[Example]:
     """The dialogue as two Confidant transcripts, each speaker taking a turn as the match."""
     a, b = dialogue.speakers
     examples = []
     for owner, match in ((a, b), (b, a)):
         head = [
-            f"# Fictional: adapted movie dialogue from MentalManip ({SOURCE}).",
+            f"# Outside test data from {dialogue.source}: {SOURCES[dialogue.source]}.",
             f"# owner: {owner}",
             f"# match: {match}",
             "",
@@ -166,7 +203,7 @@ def score_external(dialogues: Sequence[Dialogue], reads: Sequence[Read]) -> dict
     for r in reads:
         by_dialogue.setdefault(r.id.rsplit(":", 1)[0], []).append(r)
     tp = fp = fn = 0
-    agree = flagged_manip = 0
+    agree = flagged_with_techniques = 0
     danger_on_clean = invalid = 0
     per_technique: dict[str, list[int]] = {t: [0, 0] for t in TECHNIQUE_CATEGORIES}
     for d in dialogues:
@@ -180,8 +217,8 @@ def score_external(dialogues: Sequence[Dialogue], reads: Sequence[Read]) -> dict
             for t in d.techniques:
                 per_technique[t][0] += flagged
                 per_technique[t][1] += 1
-            if flagged:
-                flagged_manip += 1
+            if flagged and d.techniques:  # ReaMent has none: nothing to agree with
+                flagged_with_techniques += 1
                 agree += bool(found & d.categories)
         else:
             fp += flagged
@@ -200,7 +237,9 @@ def score_external(dialogues: Sequence[Dialogue], reads: Sequence[Read]) -> dict
         "f1": 2 * precision * recall / (precision + recall) if precision + recall else 0.0,
         "false_alarm": fp / n_clean if n_clean else 0.0,
         "danger_on_non_manipulative": danger_on_clean,
-        "category_agreement": agree / flagged_manip if flagged_manip else 0.0,
+        "category_agreement": (
+            agree / flagged_with_techniques if flagged_with_techniques else None
+        ),
         "recall_by_technique": {
             t: (hit / n if n else None, n) for t, (hit, n) in per_technique.items() if n
         },

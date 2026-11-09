@@ -189,6 +189,9 @@ Ideas that are real but not scheduled:
 - From the MentalManip test: hard negatives built from terse, ordinary replies (the main
   source of false alarms on human dialogue), and transcripts where someone *reports* a
   third party's threat rather than making one
+- Fine-tune with retrieval in the loop (training prompts that include retrieved guidance),
+  since adding guidance only at inference pushed the model toward danger flags on real
+  speech
 - More outside test sets from the survey of real data: LoveFraud02 or ConScamBench for
   scams, and the UCL Tinder corpus as real negatives (needs the authors)
 - A longer training sweep (300+ iterations per setting) to compare LoRA rank and lower

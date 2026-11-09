@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 
 from confidant.analysis.flags import FakeBackend, FlagScan
 from confidant.lab.evaluate import evaluate
@@ -10,6 +11,7 @@ from confidant.lab.external import (
     TECHNIQUE_CATEGORIES,
     directions,
     load_mentalmanip,
+    load_reament,
     score_external,
 )
 
@@ -48,7 +50,7 @@ def test_each_dialogue_is_checked_with_each_speaker_as_the_match(tmp_path):
     [first, _] = load_mentalmanip(path, per_class=5)
     a, b = directions(first)
     assert (a.conversation().match_name, b.conversation().match_name) == ("Person2", "Person1")
-    assert a.transcript.startswith("# Fictional")
+    assert a.transcript.startswith("# Outside test data from MentalManip")
 
 
 def _flag(category, quote):
@@ -106,3 +108,33 @@ def test_every_technique_maps_to_real_categories():
     assert len(TECHNIQUE_CATEGORIES) == 11
     for categories in TECHNIQUE_CATEGORIES.values():
         assert categories <= set(get_args(Category))
+
+
+def write_reament(path, rows):
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+
+REAMENT_ROWS = [
+    {"id": "0001", "dialogue": "Person1: you owe me\nPerson2: I don't", "manipulative": "1"},
+    {"id": "0002", "dialogue": "Person1: nice weather\nPerson2: lovely", "manipulative": "0"},
+    {"id": "0003", "dialogue": "Person1: just me talking", "manipulative": "0"},  # one speaker
+]
+
+
+def test_reament_is_sampled_per_class_and_one_speaker_rows_are_skipped(tmp_path):
+    path = tmp_path / "r.json"
+    write_reament(path, REAMENT_ROWS)
+    dialogues = load_reament(path, per_class=5)
+    assert sorted((d.id, d.manipulative) for d in dialogues) == [("0001", True), ("0002", False)]
+    assert all(d.source == "ReaMent" and d.techniques == () for d in dialogues)
+    assert directions(dialogues[0])[0].transcript.startswith("# Outside test data from ReaMent")
+
+
+def test_without_techniques_category_agreement_is_not_reported(tmp_path):
+    path = tmp_path / "r.json"
+    write_reament(path, REAMENT_ROWS)
+    dialogues = load_reament(path, per_class=5)
+    examples = [e for d in dialogues for e in directions(d)]
+    backend = FakeBackend(EMPTY, _flag("demeaning", "you owe me"), EMPTY, EMPTY)
+    scores = score_external(dialogues, evaluate(backend, examples))
+    assert scores["recall"] == 1.0 and scores["category_agreement"] is None
